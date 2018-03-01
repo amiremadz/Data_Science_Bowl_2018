@@ -25,11 +25,11 @@ TEST_PATH = 'data/stage1_test/'
 train_ids = next(os.walk(TRAIN_PATH))[1]
 test_ids = next(os.walk(TEST_PATH))[1]
 
-# Read train images and mask return as nump array
+# Read train images and mask and return as nump array
 def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	X_train = np.zeros((len(train_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
 	Y_train = np.zeros((len(train_ids), IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
-	print('Getting and resizing train images and masks ... ')
+	print('\nGetting and resizing train images and masks ... ')
 	sys.stdout.flush()
 
 	if os.path.isfile('train_img.npy') and os.path.isfile('train_mask.npy'):
@@ -41,6 +41,7 @@ def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	pbar = Progbar(len(train_ids))
 	for img_num, id_ in enumerate(train_ids):
 		path = os.path.join(TRAIN_PATH, id_)
+		# pick color channels, ignore alpha
 		img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
 		# 3 channels	
 		img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True)
@@ -61,4 +62,29 @@ def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	np.save("train_mask", Y_train)
 	return X_train, Y_train
 
-read_train_data()
+# Read test images and return as numpy array
+def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
+	X_test = np.zeros((len(test_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.int8)
+	test_sizes = []
+	print('\nGetting and resizing test images ... ')
+	sys.stdout.flush()
+
+	if os.path.isfile('test_img.npy') and os.path.isfile('test_sizes.npy'):
+		print('Test data loaded from memory')
+		X_test = np.load('test_img.npy')
+		test_sizes = np.load('test_sizes')
+		return X_test, test_sizes
+
+	pbar = Progbar(len(test_ids))
+	for img_num, id_ in enumerate(test_ids):
+		path = os.path.join(TEST_PATH, id_)
+		img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
+		test_sizes.append([img.shape[0], img.shape[1]])
+		img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True)
+		X_test[img_num] = img
+		pbar.update(img_num)
+	np.save('test_img', X_test)
+	np.save('test_sizes', test_sizes)
+	return X_test, test_sizes
+
+read_test_data()
