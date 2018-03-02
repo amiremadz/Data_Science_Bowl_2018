@@ -4,11 +4,10 @@ import random
 import os
 import sys
 
-
 from skimage.io import imread, imshow, imread_collection, concatenate_images
 from skimage.transform import resize
 from keras.utils import Progbar
-
+from skimage.morphology import label
 
 warnings.filterwarnings('ignore', category=UserWarning, module='skimage')
 
@@ -87,4 +86,41 @@ def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	np.save('test_sizes', test_sizes)
 	return X_test, test_sizes
 
-read_test_data()
+# Run-length encoding stolen from https://www.kaggle.com/rakhlin/fast-run-length-encoding-python
+def rl_encoder(x):
+	'''
+	x: numpy array of shape (height, width), 1 - mask, 0 - background
+    Returns run length encodings as list
+	'''
+	dots = np.where(x.T.flatten() == 1)[0]	#.T sets Fortran order down-then-right 
+	run_length = []
+	prev = -2
+	print(dots)
+	for b in dots:
+		if b > (prev + 1):
+			run_length.extend([b, 0])
+			print(run_length)
+		run_length[-1] += 1
+		prev = b
+
+	return run_length
+
+def mask_to_rles(x, cutoff=0.5):
+	'''
+	x: numpy array of shape (height, width), 1 - mask, 0 - background
+    Yields run length for all segments in image
+	'''	
+	labeled_img = label(x > cutoff)
+	for seg_id in range(1, labeled_img.max() + 1):
+		yield rl_encoder(labeled_img == seg_id)
+
+# Iterate over the test IDs and generate run-length encodings for each 
+# seperate mask identified by skimage
+def allmasks_to_rles(test_masks):
+	test_ids_new = []
+	rles = []
+	for num, id_ in enumerate(test_ids):
+		rle = list(mask_to_rles(test_masks[num]))
+		rles.extend(rle)
+		test_ids_new.extend([id_] * len(rle))
+	return test_ids, rles
