@@ -4,14 +4,14 @@ from keras.layers.convolutional import Conv2D, Conv2DTranspose
 from keras.layers.pooling import MaxPooling2D
 from keras.layers.merge import concatenate
 from keras.models import Model
-from keras import backend as KBE
+from keras import backend as K
 
 # Metric function
 def dice_coef(y_true, y_pred, smooth=1.0):
-	y_true_ = KBE.flatten(y_true)
-	y_pred_ = KBE.flatten(y_pred)
-	intersection = KBE.sum(y_true_ * y_pred_)
-	return (2.0 * intersection + smooth) / (KBE.sum(y_true_) + KBE.sum(y_pred_) + smooth)
+	y_true_ = K.flatten(y_true)
+	y_pred_ = K.flatten(y_pred)
+	intersection = K.sum(y_true_ * y_pred_)
+	return (2.0 * intersection + smooth) / (K.sum(y_true_) + K.sum(y_pred_) + smooth)
 
 # Loss funtion
 def dice_coef_loss(y_true, y_pred):
