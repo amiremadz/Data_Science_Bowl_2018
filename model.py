@@ -73,6 +73,7 @@ def build_unet(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 
 	model = Model(inputs=[inputs], outputs=[outputs])
 	model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[dice_coef])
+	model.summary()
 
 	return model
 

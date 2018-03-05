@@ -95,14 +95,11 @@ def rl_encoder(x):
 	dots = np.where(x.T.flatten() == 1)[0]	#.T sets Fortran order down-then-right 
 	run_length = []
 	prev = -2
-	print(dots)
 	for b in dots:
 		if b > (prev + 1):
 			run_length.extend([b, 0])
-			print(run_length)
 		run_length[-1] += 1
 		prev = b
-
 	return run_length
 
 def mask_to_rles(x, cutoff=0.5):
