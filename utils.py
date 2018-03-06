@@ -3,6 +3,7 @@ import numpy as np
 import random
 import os
 import sys
+import cv2
 
 from skimage.io import imread, imshow, imread_collection, concatenate_images
 from skimage.transform import resize
@@ -57,13 +58,14 @@ def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 			mask = np.maximum(mask, mask_)
 		Y_train[img_num] = mask
 		pbar.update(img_num)
+
 	np.save("train_img", X_train)
 	np.save("train_mask", Y_train)
 	return X_train, Y_train
 
 # Read test images and return as numpy array
 def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
-	X_test = np.zeros((len(test_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.int8)
+	X_test = np.zeros((len(test_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
 	test_sizes = []
 	print('\nGetting and resizing test images ... ')
 	sys.stdout.flush()
@@ -86,6 +88,69 @@ def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	np.save('test_sizes', test_sizes)
 	return X_test, test_sizes
 
+def read_imgs(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
+	tot = 3
+	X = np.zeros((tot, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
+	Y = np.zeros((tot, IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
+	for img_num, id_ in enumerate(train_ids[:tot]):
+		id_ = train_ids[0]
+		path = os.path.join(TRAIN_PATH, id_)
+		# pick color channels, ignore alpha
+		img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
+		img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True)
+		X[img_num] = img
+
+		mask = np.zeros((IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
+		for mask_file in next(os.walk(path + '/masks/'))[2]:
+			mask_ = imread(os.path.join(path + '/masks/', mask_file))
+			# shape: (IMG_HEIGHT, IMG_WIDTH)
+			mask_ = resize(mask_, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True)
+			# shape: (IMG_HEIGHT, IMG_WIDTH, 1)
+			mask_ = np.expand_dims(mask_, axis=-1)
+			mask = np.maximum(mask, mask_)
+		Y[img_num] = mask
+	return X, Y
+
+def augment_imgs(imgs, labels):
+	vrt_imgs = []
+	hrz_imgs = []
+	vrt_labels = []
+	hrz_labels = []
+	num_imgs = imgs.shape[0]
+	labels.dtype = np.uint8
+	pbar = Progbar(imgs.shape[0])
+	for idx in range(0, num_imgs):
+		img = imgs[idx]
+		label = labels[idx]
+	
+		img_hf = cv2.flip(img, 0)
+		img_vf = cv2.flip(img, 1)
+	
+		label_hf = cv2.flip(label, 0)
+		label_vf = cv2.flip(label, 1)
+	
+		hrz_imgs.append(img_hf)
+		vrt_imgs.append(img_vf)
+	
+		vrt_labels.append(label_vf)
+		hrz_labels.append(label_hf)
+
+		pbar.update(idx)
+	
+	vrt_imgs   = np.array(vrt_imgs)
+	hrz_imgs   = np.array(hrz_imgs)
+
+	vrt_labels = np.array(vrt_labels)
+	hrz_labels = np.array(hrz_labels)
+	vrt_labels = np.expand_dims(vrt_labels, axis=-1)
+	hrz_labels = np.expand_dims(hrz_labels, axis=-1)
+
+	imgs_augm = np.concatenate((imgs, vrt_imgs, hrz_imgs))
+	labels_augm = np.concatenate((labels, vrt_labels, hrz_labels))
+	labels_augm.dtype = np.bool
+	
+	return imgs_augm , labels_augm
+
 # Run-length encoding stolen from https://www.kaggle.com/rakhlin/fast-run-length-encoding-python
 def rl_encoder(x):
 	'''
@@ -107,6 +172,8 @@ def mask_to_rles(x, cutoff=0.5):
 	x: numpy array of shape (height, width), 1 - mask, 0 - background
     Yields run length for all segments in image
 	'''	
+	# Label connected regions of an integer array.
+	# background: 0
 	labeled_img = label(x > cutoff)
 	for seg_id in range(1, labeled_img.max() + 1):
 		yield rl_encoder(labeled_img == seg_id)
@@ -121,3 +188,6 @@ def allmasks_to_rles(test_masks):
 		rles.extend(rle)
 		test_ids_new.extend([id_] * len(rle))
 	return test_ids, rles
+
+X, Y = read_imgs()
+X_aug, Y_aug = augment_imgs(X, Y)
