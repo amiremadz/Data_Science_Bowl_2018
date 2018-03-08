@@ -9,6 +9,8 @@ from skimage.io import imread, imshow, imread_collection, concatenate_images
 from skimage.transform import resize
 from keras.utils import Progbar
 from skimage.morphology import label
+from scipy.ndimage.interpolation import map_coordinates
+from scipy.ndimage.filters import gaussian_filter
 
 warnings.filterwarnings('ignore', category=UserWarning, module='skimage')
 
@@ -34,8 +36,8 @@ def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 
 	if os.path.isfile('train_img.npy') and os.path.isfile('train_mask.npy'):
 		print("Training data loaded from memory")
-		X_train = np.load('train_img')
-		Y_train = np.load('train_mask')
+		X_train = np.load('train_img.npy')
+		Y_train = np.load('train_mask.npy')
 		return X_train, Y_train
 
 	pbar = Progbar(len(train_ids))
@@ -73,7 +75,7 @@ def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	if os.path.isfile('test_img.npy') and os.path.isfile('test_sizes.npy'):
 		print('Test data loaded from memory')
 		X_test = np.load('test_img.npy')
-		test_sizes = np.load('test_sizes')
+		test_sizes = np.load('test_sizes.npy')
 		return X_test, test_sizes
 
 	pbar = Progbar(len(test_ids))
@@ -88,8 +90,7 @@ def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	np.save('test_sizes', test_sizes)
 	return X_test, test_sizes
 
-def read_imgs(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
-	tot = 3
+def read_images(tot=3, IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	X = np.zeros((tot, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
 	Y = np.zeros((tot, IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
 	for img_num, id_ in enumerate(train_ids[:tot]):
@@ -111,15 +112,106 @@ def read_imgs(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 		Y[img_num] = mask
 	return X, Y
 
-def augment_imgs(imgs, labels):
+# Define function to draw a grid
+def draw_grid(image, grid_size):
+    """
+    image: numpy array of shape (height, width, channels)
+    grid_size: int
+    """
+    # Draw grid lines
+    for i in range(0, image.shape[1], grid_size):
+        cv2.line(image, (i, 0), (i, image.shape[0]), color=(255, 255, 255))
+    for j in range(0, image.shape[0], grid_size):
+        cv2.line(image, (0, j), (image.shape[1], j), color=(255, 255, 255))
+
+def elastic_transform(image, alpha, sigma, random_state=None):
+    """Elastic deformation of images as described in [Simard2003]_.
+    .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
+       Convolutional Neural Networks applied to Visual Document Analysis", in
+       Proc. of the International Conference on Document Analysis and
+       Recognition, 2003.
+       image: numpy array of shape(height, width, cannels)
+       alpha: float
+       sigma: float
+    """
+    if random_state is None:
+        random_state = np.random.RandomState(None)
+
+    shape = image.shape[:2]
+
+    dx = gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma, mode="constant", cval=0) * alpha
+    dy = gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma, mode="constant", cval=0) * alpha
+
+    x, y = np.meshgrid(np.arange(shape[0]), np.arange(shape[1]), indexing='ij')
+    indices = np.reshape(x+dx, (-1, 1)), np.reshape(y+dy, (-1, 1))
+    
+    image_elastic = np.zeros(image.shape, dtype=np.uint8)
+    for idx_ch in range(image.shape[2]):
+    	image_elastic[:, :, idx_ch] = map_coordinates(image[:, :, idx_ch], indices, order=1, mode='reflect').reshape(shape)
+    return image_elastic
+
+def eltransform_images(imgs, labels):
+	num_imgs = imgs.shape[0]
+	labels.dtype = np.uint8
+	
+	elt_imgs = []
+	elt_labels = []
+
+	print('\nPerforming elastic transform on train data ... ')
+	sys.stdout.flush()
+
+	if os.path.isfile('train_img_elt.npy') and os.path.isfile('train_mask_elt.npy'):
+		print('Train data loaded from memory')
+		imgs_elt = np.load('train_img_elt.npy')
+		labels_elt = np.load('train_mask_elt.npy')
+		return imgs_elt, labels_elt
+
+	pbar = Progbar(imgs.shape[0])
+	for idx in range(num_imgs):
+		img = imgs[idx]
+		label = labels[idx]
+
+		alpha = img.shape[1] * 2
+		sigma = img.shape[1] * 0.08
+		img_elt = elastic_transform(img, alpha, sigma)
+		label_elt = elastic_transform(label, alpha, sigma)
+
+		elt_imgs.append(img_elt)
+		elt_labels.append(label_elt)
+
+		pbar.update(idx)
+
+	elt_imgs = np.array(elt_imgs)
+	elt_labels = np.array(elt_labels)
+
+	imgs_elt = np.concatenate((imgs, elt_imgs))
+	labels_elt = np.concatenate((labels, elt_labels))
+	labels_elt.dtype = np.bool
+
+	np.save("train_img_elt", imgs_elt)
+	np.save("train_mask_elt", labels_elt)
+	return imgs_elt, labels_elt
+
+def flip_images(imgs, labels):
+	num_imgs = imgs.shape[0]
+	labels.dtype = np.uint8
+	
 	vrt_imgs = []
 	hrz_imgs = []
 	vrt_labels = []
 	hrz_labels = []
-	num_imgs = imgs.shape[0]
-	labels.dtype = np.uint8
-	pbar = Progbar(imgs.shape[0])
-	for idx in range(0, num_imgs):
+
+	print('\nPerforming horizental and vertical flipping on train data ... ')
+	sys.stdout.flush()
+
+	if os.path.isfile('train_img_flp.npy') and os.path.isfile('train_mask_flp.npy'):
+		print('Train data loaded from memory')
+		imgs_flp = np.load('train_img_flp.npy')
+		labels_flp = np.load('train_mask_flp.npy')
+		return imgs_flp, labels_flp
+
+	pbar = Progbar(num_imgs)
+	for idx in range(num_imgs):
 		img = imgs[idx]
 		label = labels[idx]
 	
@@ -145,11 +237,13 @@ def augment_imgs(imgs, labels):
 	vrt_labels = np.expand_dims(vrt_labels, axis=-1)
 	hrz_labels = np.expand_dims(hrz_labels, axis=-1)
 
-	imgs_augm = np.concatenate((imgs, vrt_imgs, hrz_imgs))
-	labels_augm = np.concatenate((labels, vrt_labels, hrz_labels))
-	labels_augm.dtype = np.bool
+	imgs_flp = np.concatenate((imgs, vrt_imgs, hrz_imgs))
+	labels_flp = np.concatenate((labels, vrt_labels, hrz_labels))
+	labels_flp.dtype = np.bool
 	
-	return imgs_augm , labels_augm
+	np.save("train_img_flp", imgs_flp)
+	np.save("train_mask_flp", labels_flp)
+	return imgs_flp , labels_flp
 
 # Run-length encoding stolen from https://www.kaggle.com/rakhlin/fast-run-length-encoding-python
 def rl_encoder(x):
@@ -189,5 +283,7 @@ def allmasks_to_rles(test_masks):
 		test_ids_new.extend([id_] * len(rle))
 	return test_ids, rles
 
-X, Y = read_imgs()
-X_aug, Y_aug = augment_imgs(X, Y)
+#X, Y = read_images()
+X, Y = read_train_data()
+X_flp, Y_flp = flip_images(X, Y)
+X_els, Y_els = eltransform_images(X_flp, Y_flp)
