@@ -257,6 +257,7 @@ def rl_encoder(x):
 	for b in dots:
 		if b > (prev + 1):
 			run_length.extend([b, 0])
+			print(b + 1)
 		run_length[-1] += 1
 		prev = b
 	return run_length
@@ -282,8 +283,3 @@ def allmasks_to_rles(test_masks):
 		rles.extend(rle)
 		test_ids_new.extend([id_] * len(rle))
 	return test_ids, rles
-
-#X, Y = read_images()
-X, Y = read_train_data()
-X_flp, Y_flp = flip_images(X, Y)
-X_els, Y_els = eltransform_images(X_flp, Y_flp)
