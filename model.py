@@ -5,6 +5,7 @@ from keras.layers.pooling import MaxPooling2D
 from keras.layers.merge import concatenate
 from keras.models import Model
 from keras import backend as K
+import tensorflow as tf
 
 # Metric function
 def dice_coef(y_true, y_pred, smooth=1.0):
@@ -16,6 +17,18 @@ def dice_coef(y_true, y_pred, smooth=1.0):
 # Loss funtion
 def dice_coef_loss(y_true, y_pred):
     return -dice_coef(y_true, y_pred)
+
+# Define IoU metric
+def mean_iou(y_true, y_pred):
+    prec = []
+    for t in np.arange(0.5, 1.0, 0.05):
+        y_pred_ = tf.to_int32(y_pred > t)
+        score, up_opt = tf.metrics.mean_iou(y_true, y_pred_, 2)
+        K.get_session().run(tf.local_variables_initializer())
+        with tf.control_dependencies([up_opt]):
+            score = tf.identity(score)
+        prec.append(score)
+    return K.mean(K.stack(prec), axis=0)
 
 def build_unet(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	inputs = Input((IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS))
@@ -77,16 +90,3 @@ def build_unet(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 	model.summary()
 
 	return model
-
-
-
-
-
-
-
-
-
-
-
-
-
