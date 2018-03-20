@@ -256,8 +256,8 @@ def rl_encoder(x):
 	prev = -2
 	for b in dots:
 		if b > (prev + 1):
-			run_length.extend([b, 0])
-			print(b + 1)
+			run_length.extend((b + 1, 0))
+			#print(b + 1)
 		run_length[-1] += 1
 		prev = b
 	return run_length
@@ -276,10 +276,20 @@ def mask_to_rles(x, cutoff=0.5):
 # Iterate over the test IDs and generate run-length encodings for each 
 # seperate mask identified by skimage
 def allmasks_to_rles(test_masks):
-	test_ids_new = []
-	rles = []
-	for num, id_ in enumerate(test_ids):
-		rle = list(mask_to_rles(test_masks[num]))
-		rles.extend(rle)
-		test_ids_new.extend([id_] * len(rle))
-	return test_ids, rles
+    test_ids_new = []
+    rles = []
+    for num, id_ in enumerate(test_ids):
+        rle = list(mask_to_rles(test_masks[num]))
+        rles.extend(rle)
+        test_ids_new.extend([id_] * len(rle))
+    return test_ids_new, rles
+
+def train_masks_to_rles(train_masks):
+    train_masks = train_masks.astype('int')
+    train_ids_new = []
+    rles = []
+    for num, id_ in enumerate(train_ids):
+            rle = list(mask_to_rles(train_masks[num]))
+            rles.extend(rle)
+            train_ids_new.extend([id_] * len(rle))
+    return train_ids_new, rles
