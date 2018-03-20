@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles
+from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles
 from model import build_unet, dice_coef
 from keras.models import load_model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -16,8 +16,17 @@ model_name = 'model-dsbowl-2018.h5'
 
 # get train train data
 X_train, Y_train = read_train_data()
-X_train, Y_train = flip_images(X_train, Y_train)
-X_train, Y_train = eltransform_images(X_train, Y_train)
+#X_train, Y_train = flip_images(X_train, Y_train)
+#X_train, Y_train = eltransform_images(X_train, Y_train)
+
+# Test rles
+train_ids, train_rles = train_masks_to_rles(Y_train)
+# Create train submission data frame
+submit_train = pd.DataFrame()
+submit_train['ImageId'] = train_ids
+submit_train['EncodedPixels'] = pd.Series(train_rles).apply(lambda x: ' '.join(str(y) for y in x))
+submit_train.sort_values(by=['ImageId'], inplace=True)
+submit_train.to_csv('submit-train-dsbowol-2018.csv', index=False)
 
 # get test train data
 X_test, test_sizes = read_test_data()
