@@ -17,7 +17,7 @@ model_name = 'model-dsbowl-2018.h5'
 # get train train data
 X_train, Y_train = read_train_data()
 #X_train, Y_train = flip_images(X_train, Y_train)
-#X_train, Y_train = eltransform_images(X_train, Y_train)
+X_train, Y_train = eltransform_images(X_train, Y_train)
 
 # Test rles
 train_ids, train_rles = train_masks_to_rles(Y_train)
@@ -55,7 +55,7 @@ if os.path.isfile('preds_train.npy') and os.path.isfile('preds_val.npy') and os.
 else:
 	preds_train = model.predict(X_train[:int(X_train.shape[0]*0.9)], verbose=1)
 	preds_val = model.predict(X_train[int(X_train.shape[0]*0.9):], verbose=1)
-	preds_test = model.predict(X_test, verandbose=1)
+	preds_test = model.predict(X_test, verbose=1)
 	np.save('preds_train.npy', preds_train)
 	np.save('preds_val.npy', preds_val)
 	np.save('preds_test.npy', preds_test)
@@ -70,7 +70,6 @@ X_test_resized = []
 for idx in range(len(X_test)):
 	this_mask = preds_test[idx]
 	this_size = test_sizes[idx]
-	print(idx, this_size)
 	X_test_resized.append(resize(np.squeeze(this_mask), (this_size[0], this_size[1]), 
 		mode='constant', preserve_range=True))
 test_ids, rles = allmasks_to_rles(X_test_resized)
@@ -79,6 +78,7 @@ test_ids, rles = allmasks_to_rles(X_test_resized)
 submit = pd.DataFrame()
 submit['ImageId'] = test_ids
 submit['EncodedPixels'] = pd.Series(rles).apply(lambda x: ' '.join(str(y) for y in x))
+submit.sort_values(by=['ImageId'], inplace=True)
 submit.to_csv('submit-dsbowol-2018.csv', index=False)
 
 # Perform a sanity check on some random training samples
