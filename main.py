@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles
-from model import build_unet, dice_coef
+from model import build_unet, dice_coef, mean_iou
 from keras.models import load_model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from skimage.transform import resize
@@ -17,7 +17,7 @@ model_name = 'model-dsbowl-2018.h5'
 # get train train data
 X_train, Y_train = read_train_data()
 #X_train, Y_train = flip_images(X_train, Y_train)
-X_train, Y_train = eltransform_images(X_train, Y_train)
+#X_train, Y_train = eltransform_images(X_train, Y_train)
 
 # Test rles
 train_ids, train_rles = train_masks_to_rles(Y_train)
@@ -32,33 +32,33 @@ submit_train.to_csv('submit-train-dsbowol-2018.csv', index=False)
 X_test, test_sizes = read_test_data()
 
 if os.path.isfile(model_name):
-	#model = load_model(model_name, custom_objects={'mean_iou': mean_iou})
-	model = load_model(model_name, custom_objects={'dice_coef': dice_coef})
+    model = load_model(model_name, custom_objects={'mean_iou': mean_iou})
+    #model = load_model(model_name, custom_objects={'dice_coef': dice_coef})
 else:
-	# get u-net model
-	model = build_unet()
+    # get u-net model
+    model = build_unet()
 
-	# train model
-	print("\nTraining ...")
-	earlystopper = EarlyStopping(patience=5, verbose=1)
-	checkpointer = ModelCheckpoint('model-dsbowl-2018.h5', verbose=1, save_best_only=True)
-	results = model.fit(X_train, Y_train, validation_split=0.1, batch_size=16, epochs=epochs,
- 		callbacks=[earlystopper, checkpointer])
+    # train model
+    print("\nTraining ...")
+    earlystopper = EarlyStopping(patience=5, verbose=1)
+    checkpointer = ModelCheckpoint('model-dsbowl-2018.h5', verbose=1, save_best_only=True)
+    results = model.fit(X_train, Y_train, validation_split=0.1, batch_size=16, epochs=epochs,
+            callbacks=[earlystopper, checkpointer])
 
 # Predict using test data
 print("\nPredicitng ...")
 if os.path.isfile('preds_train.npy') and os.path.isfile('preds_val.npy') and os.path.isfile('preds_test.npy'): 
-	print("Prediction data loaded from memory ...")
-	preds_train = np.load('preds_train.npy')
-	preds_val = np.load('preds_val.npy')
-	preds_test = np.load('preds_test.npy')
+    print("Prediction data loaded from memory ...")
+    preds_train = np.load('preds_train.npy')
+    preds_val = np.load('preds_val.npy')
+    preds_test = np.load('preds_test.npy')
 else:
-	preds_train = model.predict(X_train[:int(X_train.shape[0]*0.9)], verbose=1)
-	preds_val = model.predict(X_train[int(X_train.shape[0]*0.9):], verbose=1)
-	preds_test = model.predict(X_test, verbose=1)
-	np.save('preds_train.npy', preds_train)
-	np.save('preds_val.npy', preds_val)
-	np.save('preds_test.npy', preds_test)
+    preds_train = model.predict(X_train[:int(X_train.shape[0]*0.9)], verbose=1)
+    preds_val = model.predict(X_train[int(X_train.shape[0]*0.9):], verbose=1)
+    preds_test = model.predict(X_test, verbose=1)
+    np.save('preds_train.npy', preds_train)
+    np.save('preds_val.npy', preds_val)
+    np.save('preds_test.npy', preds_test)
 
 # Threshold predictions
 preds_train_thr = (preds_train > 0.5).astype(np.uint8)
@@ -68,10 +68,9 @@ preds_test_thr  = (preds_test > 0.5).astype(np.uint8)
 # Create list of resized test masks
 X_test_resized = []
 for idx in range(len(X_test)):
-	this_mask = preds_test[idx]
-	this_size = test_sizes[idx]
-	X_test_resized.append(resize(np.squeeze(this_mask), (this_size[0], this_size[1]), 
-		mode='constant', preserve_range=True))
+    this_mask = preds_test[idx]
+    this_size = test_sizes[idx]
+    X_test_resized.append(resize(np.squeeze(this_mask), (this_size[0], this_size[1]), mode='constant', preserve_range=True, anti_aliasing=True))
 test_ids, rles = allmasks_to_rles(X_test_resized)
 
 # Create submission data frame

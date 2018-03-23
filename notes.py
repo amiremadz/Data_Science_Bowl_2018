@@ -10,6 +10,7 @@ for i in range(IMG_CHANNELS):
         canal = (canal * factor).astype(int)
     an_img[:,:,i] = canal
 
+resize anti-aliasing
 
 
 def iou_metric(y_true_in, y_pred_in, print_table=False):

@@ -29,88 +29,88 @@ test_ids = next(os.walk(TEST_PATH))[1]
 
 # Read train images and mask and return as nump array
 def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
-	X_train = np.zeros((len(train_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
-	Y_train = np.zeros((len(train_ids), IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
-	print('\nGetting and resizing train images and masks ... ')
-	sys.stdout.flush()
+    X_train = np.zeros((len(train_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
+    Y_train = np.zeros((len(train_ids), IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
+    print('\nGetting and resizing train images and masks ... ')
+    sys.stdout.flush()
 
-	if os.path.isfile('train_img.npy') and os.path.isfile('train_mask.npy'):
-		print("Training data loaded from memory")
-		X_train = np.load('train_img.npy')
-		Y_train = np.load('train_mask.npy')
-		return X_train, Y_train
+    if os.path.isfile('train_img.npy') and os.path.isfile('train_mask.npy'):
+        print("Training data loaded from memory")
+        X_train = np.load('train_img.npy')
+        Y_train = np.load('train_mask.npy')
+        return X_train, Y_train
 
-	pbar = Progbar(len(train_ids))
-	for img_num, id_ in enumerate(train_ids):
-		path = os.path.join(TRAIN_PATH, id_)
-		# pick color channels, ignore alpha
-		img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
-		# 3 channels	
-		img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True)
-		# 3 channels resized
-		X_train[img_num] = img
+    pbar = Progbar(len(train_ids))
+    for img_num, id_ in enumerate(train_ids):
+        path = os.path.join(TRAIN_PATH, id_)
+        # pick color channels, ignore alpha
+        img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
+        # 3 channels	
+        img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=True)
+        # 3 channels resized
+        X_train[img_num] = img
 
-		mask = np.zeros((IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
-		for mask_file in next(os.walk(path + '/masks/'))[2]:
-			mask_ = imread(os.path.join(path + '/masks/', mask_file))
-			# shape: (IMG_HEIGHT, IMG_WIDTH)
-			mask_ = resize(mask_, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True)
-			# shape: (IMG_HEIGHT, IMG_WIDTH, 1)
-			mask_ = np.expand_dims(mask_, axis=-1)
-			mask = np.maximum(mask, mask_)
-		Y_train[img_num] = mask
-		pbar.update(img_num)
+        mask = np.zeros((IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
+        for mask_file in next(os.walk(path + '/masks/'))[2]:
+            mask_ = imread(os.path.join(path + '/masks/', mask_file))
+            # shape: (IMG_HEIGHT, IMG_WIDTH)
+            mask_ = resize(mask_, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=True)
+            # shape: (IMG_HEIGHT, IMG_WIDTH, 1)
+            mask_ = np.expand_dims(mask_, axis=-1)
+            mask = np.maximum(mask, mask_)
+        Y_train[img_num] = mask
+        pbar.update(img_num)
 
-	np.save("train_img", X_train)
-	np.save("train_mask", Y_train)
-	return X_train, Y_train
+    np.save("train_img", X_train)
+    np.save("train_mask", Y_train)
+    return X_train, Y_train
 
 # Read test images and return as numpy array
 def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
-	X_test = np.zeros((len(test_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
-	test_sizes = []
-	print('\nGetting and resizing test images ... ')
-	sys.stdout.flush()
+    X_test = np.zeros((len(test_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
+    test_sizes = []
+    print('\nGetting and resizing test images ... ')
+    sys.stdout.flush()
 
-	if os.path.isfile('test_img.npy') and os.path.isfile('test_sizes.npy'):
-		print('Test data loaded from memory')
-		X_test = np.load('test_img.npy')
-		test_sizes = np.load('test_sizes.npy')
-		return X_test, test_sizes
+    if os.path.isfile('test_img.npy') and os.path.isfile('test_sizes.npy'):
+        print('Test data loaded from memory')
+        X_test = np.load('test_img.npy')
+        test_sizes = np.load('test_sizes.npy')
+        return X_test, test_sizes
 
-	pbar = Progbar(len(test_ids))
-	for img_num, id_ in enumerate(test_ids):
-		path = os.path.join(TEST_PATH, id_)
-		img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
-		test_sizes.append([img.shape[0], img.shape[1]])
-		img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True)
-		X_test[img_num] = img
-		pbar.update(img_num)
-	np.save('test_img', X_test)
-	np.save('test_sizes', test_sizes)
-	return X_test, test_sizes
+    pbar = Progbar(len(test_ids))
+    for img_num, id_ in enumerate(test_ids):
+        path = os.path.join(TEST_PATH, id_)
+        img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
+        test_sizes.append([img.shape[0], img.shape[1]])
+        img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=True)
+        X_test[img_num] = img
+        pbar.update(img_num)
+    np.save('test_img', X_test)
+    np.save('test_sizes', test_sizes)
+    return X_test, test_sizes
 
 def read_images(tot=3, IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
-	X = np.zeros((tot, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
-	Y = np.zeros((tot, IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
-	for img_num, id_ in enumerate(train_ids[:tot]):
-		id_ = train_ids[0]
-		path = os.path.join(TRAIN_PATH, id_)
-		# pick color channels, ignore alpha
-		img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
-		img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True)
-		X[img_num] = img
+    X = np.zeros((tot, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
+    Y = np.zeros((tot, IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
+    for img_num, id_ in enumerate(train_ids[:tot]):
+        id_ = train_ids[0]
+        path = os.path.join(TRAIN_PATH, id_)
+        # pick color channels, ignore alpha
+        img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
+        img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, ant_aliasing=True)
+        X[img_num] = img
 
-		mask = np.zeros((IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
-		for mask_file in next(os.walk(path + '/masks/'))[2]:
-			mask_ = imread(os.path.join(path + '/masks/', mask_file))
-			# shape: (IMG_HEIGHT, IMG_WIDTH)
-			mask_ = resize(mask_, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True)
-			# shape: (IMG_HEIGHT, IMG_WIDTH, 1)
-			mask_ = np.expand_dims(mask_, axis=-1)
-			mask = np.maximum(mask, mask_)
-		Y[img_num] = mask
-	return X, Y
+        mask = np.zeros((IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
+        for mask_file in next(os.walk(path + '/masks/'))[2]:
+            mask_ = imread(os.path.join(path + '/masks/', mask_file))
+            # shape: (IMG_HEIGHT, IMG_WIDTH)
+            mask_ = resize(mask_, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=True)
+            # shape: (IMG_HEIGHT, IMG_WIDTH, 1)
+            mask_ = np.expand_dims(mask_, axis=-1)
+            mask = np.maximum(mask, mask_)
+        Y[img_num] = mask
+    return X, Y
 
 # Define function to draw a grid
 def draw_grid(image, grid_size):
@@ -151,127 +151,130 @@ def elastic_transform(image, alpha, sigma, random_state=None):
     return image_elastic
 
 def eltransform_images(imgs, labels):
-	num_imgs = imgs.shape[0]
-	labels.dtype = np.uint8
-	
-	elt_imgs = []
-	elt_labels = []
+    num_imgs = imgs.shape[0]
+    labels.dtype = np.uint8
+    
+    elt_imgs = []
+    elt_labels = []
 
-	print('\nPerforming elastic transform on train data ... ')
-	sys.stdout.flush()
+    print('\nPerforming elastic transform on train data ... ')
+    sys.stdout.flush()
 
-	if os.path.isfile('train_img_elt.npy') and os.path.isfile('train_mask_elt.npy'):
-		print('Train data loaded from memory')
-		imgs_elt = np.load('train_img_elt.npy')
-		labels_elt = np.load('train_mask_elt.npy')
-		return imgs_elt, labels_elt
+    if os.path.isfile('train_img_elt.npy') and os.path.isfile('train_mask_elt.npy'):
+        print('Train data loaded from memory')
+        imgs_elt = np.load('train_img_elt.npy')
+        labels_elt = np.load('train_mask_elt.npy')
+        return imgs_elt, labels_elt
 
-	pbar = Progbar(imgs.shape[0])
-	for idx in range(num_imgs):
-		img = imgs[idx]
-		label = labels[idx]
+    pbar = Progbar(imgs.shape[0])
+    for idx in range(num_imgs):
+        img = imgs[idx]
+        label = labels[idx]
 
-		alpha = img.shape[1] * 2
-		sigma = img.shape[1] * 0.08
-		img_elt = elastic_transform(img, alpha, sigma)
-		label_elt = elastic_transform(label, alpha, sigma)
+        alpha = img.shape[1] * 2
+        sigma = img.shape[1] * 0.08
+        img_elt = elastic_transform(img, alpha, sigma)
+        label_elt = elastic_transform(label, alpha, sigma)
 
-		elt_imgs.append(img_elt)
-		elt_labels.append(label_elt)
+        elt_imgs.append(img_elt)
+        elt_labels.append(label_elt)
 
-		pbar.update(idx)
+        pbar.update(idx)
 
-	elt_imgs = np.array(elt_imgs)
-	elt_labels = np.array(elt_labels)
+    elt_imgs = np.array(elt_imgs)
+    elt_labels = np.array(elt_labels)
 
-	imgs_elt = np.concatenate((imgs, elt_imgs))
-	labels_elt = np.concatenate((labels, elt_labels))
-	labels_elt.dtype = np.bool
+    imgs_elt = np.concatenate((imgs, elt_imgs))
+    labels_elt = np.concatenate((labels, elt_labels))
+    labels_elt.dtype = np.bool
 
-	np.save("train_img_elt", imgs_elt)
-	np.save("train_mask_elt", labels_elt)
-	return imgs_elt, labels_elt
+    np.save("train_img_elt", imgs_elt)
+    np.save("train_mask_elt", labels_elt)
+    return imgs_elt, labels_elt
 
 def flip_images(imgs, labels):
-	num_imgs = imgs.shape[0]
-	labels.dtype = np.uint8
-	
-	vrt_imgs = []
-	hrz_imgs = []
-	vrt_labels = []
-	hrz_labels = []
+    num_imgs = imgs.shape[0]
+    labels.dtype = np.uint8
+    
+    vrt_imgs = []
+    hrz_imgs = []
+    vrt_labels = []
+    hrz_labels = []
 
-	print('\nPerforming horizental and vertical flipping on train data ... ')
-	sys.stdout.flush()
+    print('\nPerforming horizental and vertical flipping on train data ... ')
+    sys.stdout.flush()
 
-	if os.path.isfile('train_img_flp.npy') and os.path.isfile('train_mask_flp.npy'):
-		print('Train data loaded from memory')
-		imgs_flp = np.load('train_img_flp.npy')
-		labels_flp = np.load('train_mask_flp.npy')
-		return imgs_flp, labels_flp
+    if os.path.isfile('train_img_flp.npy') and os.path.isfile('train_mask_flp.npy'):
+        print('Train data loaded from memory')
+        imgs_flp = np.load('train_img_flp.npy')
+        labels_flp = np.load('train_mask_flp.npy')
+        return imgs_flp, labels_flp
 
-	pbar = Progbar(num_imgs)
-	for idx in range(num_imgs):
-		img = imgs[idx]
-		label = labels[idx]
-	
-		img_hf = cv2.flip(img, 0)
-		img_vf = cv2.flip(img, 1)
-	
-		label_hf = cv2.flip(label, 0)
-		label_vf = cv2.flip(label, 1)
-	
-		hrz_imgs.append(img_hf)
-		vrt_imgs.append(img_vf)
-	
-		vrt_labels.append(label_vf)
-		hrz_labels.append(label_hf)
+    pbar = Progbar(num_imgs)
+    for idx in range(num_imgs):
+        img = imgs[idx]
+        label = labels[idx]
 
-		pbar.update(idx)
-	
-	vrt_imgs   = np.array(vrt_imgs)
-	hrz_imgs   = np.array(hrz_imgs)
+        img_hf = cv2.flip(img, 0)
+        img_vf = cv2.flip(img, 1)
 
-	vrt_labels = np.array(vrt_labels)
-	hrz_labels = np.array(hrz_labels)
-	vrt_labels = np.expand_dims(vrt_labels, axis=-1)
-	hrz_labels = np.expand_dims(hrz_labels, axis=-1)
+        label_hf = cv2.flip(label, 0)
+        label_vf = cv2.flip(label, 1)
 
-	imgs_flp = np.concatenate((imgs, vrt_imgs, hrz_imgs))
-	labels_flp = np.concatenate((labels, vrt_labels, hrz_labels))
-	labels_flp.dtype = np.bool
-	
-	np.save("train_img_flp", imgs_flp)
-	np.save("train_mask_flp", labels_flp)
-	return imgs_flp , labels_flp
+        hrz_imgs.append(img_hf)
+        vrt_imgs.append(img_vf)
+
+        vrt_labels.append(label_vf)
+        hrz_labels.append(label_hf)
+
+        pbar.update(idx)
+    
+    vrt_imgs   = np.array(vrt_imgs)
+    hrz_imgs   = np.array(hrz_imgs)
+
+    vrt_labels = np.array(vrt_labels)
+    hrz_labels = np.array(hrz_labels)
+    vrt_labels = np.expand_dims(vrt_labels, axis=-1)
+    hrz_labels = np.expand_dims(hrz_labels, axis=-1)
+
+    imgs_flp = np.concatenate((imgs, vrt_imgs, hrz_imgs))
+    labels_flp = np.concatenate((labels, vrt_labels, hrz_labels))
+    labels_flp.dtype = np.bool
+    
+    np.save("train_img_flp", imgs_flp)
+    np.save("train_mask_flp", labels_flp)
+    return imgs_flp , labels_flp
 
 # Run-length encoding stolen from https://www.kaggle.com/rakhlin/fast-run-length-encoding-python
 def rl_encoder(x):
-	'''
-	x: numpy array of shape (height, width), 1 - mask, 0 - background
+    '''
+    x: numpy array of shape (height, width), 1 - mask, 0 - background
     Returns run length encodings as list
-	'''
-	dots = np.where(x.T.flatten() == 1)[0]	#.T sets Fortran order down-then-right 
-	run_length = []
-	prev = -2
-	for b in dots:
-		if b > (prev + 1):
-			run_length.extend((b + 1, 0))
-			#print(b + 1)
-		run_length[-1] += 1
-		prev = b
-	return run_length
+    '''
+    dots = np.where(x.T.flatten() == 1)[0]	#.T sets Fortran order down-then-right 
+    run_length = []
+    prev = -2
+    for b in dots:
+        if b > (prev + 1):
+                run_length.extend((b + 1, 0))
+                #print(b + 1)
+        run_length[-1] += 1
+        prev = b
+    return run_length
 
 def mask_to_rles(x, cutoff=0.5):
-	'''
-	x: numpy array of shape (height, width), 1 - mask, 0 - background
+    '''
+    x: numpy array of shape (height, width), 1 - mask, 0 - background
     Yields run length for all segments in image
-	'''	
-	# Label connected regions of an integer array.
-	# background: 0
-	labeled_img = label(x > cutoff)
-	for seg_id in range(1, labeled_img.max() + 1):
-		yield rl_encoder(labeled_img == seg_id)
+    '''	
+    # Label connected regions of an integer array.
+    # background: 0
+    labeled_img = label(x > cutoff)
+    if labeled_img.max() < 1:
+        labeled_img[0, 0] = 1 # ensure at least one prediction per image
+    
+    for seg_id in range(1, labeled_img.max() + 1):
+        yield rl_encoder(labeled_img == seg_id)
 
 # Iterate over the test IDs and generate run-length encodings for each 
 # seperate mask identified by skimage
@@ -289,7 +292,7 @@ def train_masks_to_rles(train_masks):
     train_ids_new = []
     rles = []
     for num, id_ in enumerate(train_ids):
-            rle = list(mask_to_rles(train_masks[num]))
-            rles.extend(rle)
-            train_ids_new.extend([id_] * len(rle))
+        rle = list(mask_to_rles(train_masks[num]))
+        rles.extend(rle)
+        train_ids_new.extend([id_] * len(rle))
     return train_ids_new, rles
