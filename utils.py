@@ -14,6 +14,8 @@ from scipy.ndimage.filters import gaussian_filter
 
 warnings.filterwarnings('ignore', category=UserWarning, module='skimage')
 
+antialias_flag = False 
+
 # Setting seed for reproducability
 seed = 42
 random.seed = seed
@@ -46,7 +48,7 @@ def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
         # pick color channels, ignore alpha
         img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
         # 3 channels	
-        img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=True)
+        img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=antialias_flag)
         # 3 channels resized
         X_train[img_num] = img
 
@@ -54,7 +56,7 @@ def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
         for mask_file in next(os.walk(path + '/masks/'))[2]:
             mask_ = imread(os.path.join(path + '/masks/', mask_file))
             # shape: (IMG_HEIGHT, IMG_WIDTH)
-            mask_ = resize(mask_, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=True)
+            mask_ = resize(mask_, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=antialias_flag)
             # shape: (IMG_HEIGHT, IMG_WIDTH, 1)
             mask_ = np.expand_dims(mask_, axis=-1)
             mask = np.maximum(mask, mask_)
@@ -83,7 +85,7 @@ def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
         path = os.path.join(TEST_PATH, id_)
         img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
         test_sizes.append([img.shape[0], img.shape[1]])
-        img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=True)
+        img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=antialias_flag)
         X_test[img_num] = img
         pbar.update(img_num)
     np.save('test_img', X_test)
@@ -98,14 +100,14 @@ def read_images(tot=3, IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
         path = os.path.join(TRAIN_PATH, id_)
         # pick color channels, ignore alpha
         img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
-        img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, ant_aliasing=True)
+        img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, ant_aliasing=antialias_flag)
         X[img_num] = img
 
         mask = np.zeros((IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
         for mask_file in next(os.walk(path + '/masks/'))[2]:
             mask_ = imread(os.path.join(path + '/masks/', mask_file))
             # shape: (IMG_HEIGHT, IMG_WIDTH)
-            mask_ = resize(mask_, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=True)
+            mask_ = resize(mask_, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=antialias_flag)
             # shape: (IMG_HEIGHT, IMG_WIDTH, 1)
             mask_ = np.expand_dims(mask_, axis=-1)
             mask = np.maximum(mask, mask_)
@@ -270,8 +272,8 @@ def mask_to_rles(x, cutoff=0.5):
     # Label connected regions of an integer array.
     # background: 0
     labeled_img = label(x > cutoff)
-    if labeled_img.max() < 1:
-        labeled_img[0, 0] = 1 # ensure at least one prediction per image
+    #if labeled_img.max() < 1:
+    #    labeled_img[0, 0] = 1 # ensure at least one prediction per image
     
     for seg_id in range(1, labeled_img.max() + 1):
         yield rl_encoder(labeled_img == seg_id)
