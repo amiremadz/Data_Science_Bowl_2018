@@ -11,8 +11,8 @@ from skimage import io
 from matplotlib import pyplot as plt
 import random
 
-epochs = 50
 model_name = 'model-dsbowl-2018.h5'
+antialias_flag = False 
 
 # get train train data
 X_train, Y_train = read_train_data()
@@ -20,13 +20,13 @@ X_train, Y_train = read_train_data()
 #X_train, Y_train = eltransform_images(X_train, Y_train)
 
 # Test rles
-train_ids, train_rles = train_masks_to_rles(Y_train)
+#train_ids, train_rles = train_masks_to_rles(Y_train)
 # Create train submission data frame
-submit_train = pd.DataFrame()
-submit_train['ImageId'] = train_ids
-submit_train['EncodedPixels'] = pd.Series(train_rles).apply(lambda x: ' '.join(str(y) for y in x))
-submit_train.sort_values(by=['ImageId'], inplace=True)
-submit_train.to_csv('submit-train-dsbowol-2018.csv', index=False)
+#submit_train = pd.DataFrame()
+#submit_train['ImageId'] = train_ids
+#submit_train['EncodedPixels'] = pd.Series(train_rles).apply(lambda x: ' '.join(str(y) for y in x))
+#submit_train.sort_values(by=['ImageId'], inplace=True)
+#submit_train.to_csv('submit-train-dsbowol-2018.csv', index=False)
 
 # get test train data
 X_test, test_sizes = read_test_data()
@@ -42,7 +42,7 @@ else:
     print("\nTraining ...")
     earlystopper = EarlyStopping(patience=5, verbose=1)
     checkpointer = ModelCheckpoint('model-dsbowl-2018.h5', verbose=1, save_best_only=True)
-    results = model.fit(X_train, Y_train, validation_split=0.1, batch_size=16, epochs=epochs,
+    results = model.fit(X_train, Y_train, validation_split=0.1, batch_size=16, epochs=50,
             callbacks=[earlystopper, checkpointer])
 
 # Predict using test data
@@ -70,7 +70,7 @@ X_test_resized = []
 for idx in range(len(X_test)):
     this_mask = preds_test[idx]
     this_size = test_sizes[idx]
-    X_test_resized.append(resize(np.squeeze(this_mask), (this_size[0], this_size[1]), mode='constant', preserve_range=True, anti_aliasing=True))
+    X_test_resized.append(resize(np.squeeze(this_mask), (this_size[0], this_size[1]), mode='constant', preserve_range=True, anti_aliasing=antialias_flag))
 test_ids, rles = allmasks_to_rles(X_test_resized)
 
 # Create submission data frame
@@ -89,9 +89,26 @@ plt.subplot(132)
 io.imshow(np.squeeze(Y_train[ix]))
 plt.subplot(133)
 io.imshow(np.squeeze(preds_train_thr[ix]))
-plt.show()
+
+ix = random.randint(0, len(preds_train_thr))
+plt.figure(figsize=(10,10))
+plt.subplot(131)
+io.imshow(X_train[ix])
+plt.subplot(132)
+io.imshow(np.squeeze(Y_train[ix]))
+plt.subplot(133)
+io.imshow(np.squeeze(preds_train_thr[ix]))
 
 # Perform a sanity check on some random validation samples
+ix = random.randint(0, len(preds_val_thr))
+plt.figure(figsize=(10,10))
+plt.subplot(131)
+io.imshow(X_train[int(X_train.shape[0]*0.9):][ix])
+plt.subplot(132)
+io.imshow(np.squeeze(Y_train[int(Y_train.shape[0]*0.9):][ix]))
+plt.subplot(133)
+io.imshow(np.squeeze(preds_val_thr[ix]))
+
 ix = random.randint(0, len(preds_val_thr))
 plt.figure(figsize=(10,10))
 plt.subplot(131)
