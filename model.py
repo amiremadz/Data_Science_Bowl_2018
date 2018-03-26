@@ -88,7 +88,8 @@ def build_unet(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
     outputs = Conv2D(1, (1, 1), activation='relu') (c9)			# sigmoid
 
     model = Model(inputs=[inputs], outputs=[outputs])
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[dice_coef, 'acc', 'mse'])
+    #model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[mean_iou])
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[mean_iou, 'acc', 'mse'])
     #model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[dice_coef])
     #model.compile(optimizer='adam', loss='binary_crossentropy', metrics=[mean_iou])
     model.summary()
