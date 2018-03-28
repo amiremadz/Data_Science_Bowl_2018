@@ -1,0 +1,7 @@
+data/
+*.jpg
+*.npy
+*.csv
+*.swp
+*.pyc
+*.h5
