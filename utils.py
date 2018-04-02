@@ -196,6 +196,7 @@ def eltransform_images(imgs, labels):
 
 def flip_images(imgs, labels):
     num_imgs = imgs.shape[0]
+    labels = np.squeeze(labels)
     labels.dtype = np.uint8
     
     vrt_imgs = []
@@ -206,11 +207,17 @@ def flip_images(imgs, labels):
     print('\nPerforming horizental and vertical flipping on train data ... ')
     sys.stdout.flush()
 
-    if os.path.isfile('train_img_flp.npy') and os.path.isfile('train_mask_flp.npy'):
-        print('Train data loaded from memory')
-        imgs_flp = np.load('train_img_flp.npy')
-        labels_flp = np.load('train_mask_flp.npy')
-        return imgs_flp, labels_flp
+    if os.path.isfile('flp_vrt.npz') and os.path.isfile('flp_hrz.npz'):
+        print('Flipped data loaded from memory')
+        flp_vrt = np.load('flp_vrt.npz')
+        vrt_imgs   = flp_vrt['vrt_imgs']
+        vrt_labels = flp_vrt['vrt_labels']
+
+        flp_hrz = np.load('flp_hrz.npz')
+        hrz_imgs   = flp_hrz['hrz_imgs']
+        hrz_labels = flp_hrz['hrz_labels'] 
+        
+        return [hrz_imgs, hrz_labels], [vrt_imgs, vrt_labels]
 
     pbar = Progbar(num_imgs)
     for idx in range(num_imgs):
@@ -236,16 +243,19 @@ def flip_images(imgs, labels):
 
     vrt_labels = np.array(vrt_labels)
     hrz_labels = np.array(hrz_labels)
+    
+    labels     = np.expand_dims(labels, axis=-1)
     vrt_labels = np.expand_dims(vrt_labels, axis=-1)
     hrz_labels = np.expand_dims(hrz_labels, axis=-1)
 
-    imgs_flp = np.concatenate((imgs, vrt_imgs, hrz_imgs))
-    labels_flp = np.concatenate((labels, vrt_labels, hrz_labels))
-    labels_flp.dtype = np.bool
+    labels.dtype     = np.bool
+    vrt_labels.dtype = np.bool
+    hrz_labels.dtype = np.bool
+
+    np.savez("flp_vrt", vrt_imgs=vrt_imgs, vrt_labels=vrt_labels)
+    np.savez("flp_hrz", hrz_imgs=hrz_imgs, hrz_labels=hrz_labels)
     
-    np.save("train_img_flp", imgs_flp)
-    np.save("train_mask_flp", labels_flp)
-    return imgs_flp , labels_flp
+    return [hrz_imgs, hrz_labels], [vrt_imgs, vrt_labels]
 
 # Run-length encoding stolen from https://www.kaggle.com/rakhlin/fast-run-length-encoding-python
 def rl_encoder(x):
