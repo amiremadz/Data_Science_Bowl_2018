@@ -16,7 +16,11 @@ antialias_flag = False
 
 # get train train data
 X_train, Y_train = read_train_data()
-#X_train, Y_train = flip_images(X_train, Y_train)
+hrz_flp, vrt_flp = flip_images(X_train, Y_train)
+
+X_train = np.concatenate((X_train, vrt_flp[0], hrz_flp[0]))
+Y_train = np.concatenate((Y_train, vrt_flp[1], hrz_flp[1]))
+
 #X_train, Y_train = eltransform_images(X_train, Y_train)
 
 # Test rles
