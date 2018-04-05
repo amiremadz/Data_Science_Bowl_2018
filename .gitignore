@@ -5,3 +5,5 @@ data/
 *.swp
 *.pyc
 *.h5
+*.npz
+*.npy
