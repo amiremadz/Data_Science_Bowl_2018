@@ -2,12 +2,13 @@ import os
 import numpy as np
 import pandas as pd
 
-from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles
+from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles, add_noise, affine_transform, rotate
 from model import build_unet, dice_coef, mean_iou
 from keras.models import load_model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from skimage.transform import resize
 from skimage import io
+from skimage.util import random_noise
 from matplotlib import pyplot as plt
 import random
 
@@ -15,12 +16,23 @@ model_name = 'model-dsbowl-2018.h5'
 antialias_flag = False 
 
 # get train train data
-X_train, Y_train = read_train_data()
-hrz_flp, vrt_flp = flip_images(X_train, Y_train)
+X_orig, Y_orig = read_train_data()
+#elt_imgs, elt_labels = eltransform_images(X_orig, Y_orig)
 
-X_train = np.concatenate((X_train, vrt_flp[0], hrz_flp[0]))
-Y_train = np.concatenate((Y_train, vrt_flp[1], hrz_flp[1]))
+hrz_flp, vrt_flp   = flip_images(X_orig, Y_orig)
+X_aft, Y_aft       = affine_transform(X_orig, Y_orig)
+X_rot90, Y_rot90   = rotate_images(X_orig, Y_orig, 90)
+X_rot180, Y_rot180 = rotate_images(X_orig, Y_orig, 180)
+X_rot270, Y_rot270 = rotate_images(X_orig, Y_orig, 270)
 
+X_train = np.concatenate((X_orig, vrt_flp[0], hrz_flp[0], X_aft, X_rot90, X_rot180))
+Y_train = np.concatenate((Y_orig, vrt_flp[1], hrz_flp[1], Y_aft, Y_rot90, Y_rot180))
+
+
+#X_noisy = add_noise(X_orig)
+#X_train = np.concatenate((X_train, X_noisy))
+#Y_train = np.concatenate((Y_train, Y_orig))
+#
 #X_train, Y_train = eltransform_images(X_train, Y_train)
 
 # Test rles
@@ -46,7 +58,7 @@ else:
     print("\nTraining ...")
     earlystopper = EarlyStopping(patience=5, verbose=1)
     checkpointer = ModelCheckpoint('model-dsbowl-2018.h5', verbose=1, save_best_only=True)
-    results = model.fit(X_train, Y_train, validation_split=0.1, batch_size=16, epochs=50,
+    results = model.fit(X_train, Y_train, validation_split=0.1, batch_size=8, epochs=30,
             callbacks=[earlystopper, checkpointer])
 
 # Predict using test data
@@ -65,9 +77,13 @@ else:
     np.save('preds_test.npy', preds_test)
 
 # Threshold predictions
-preds_train_thr = (preds_train > 0.5).astype(np.uint8)
-preds_val_thr   = (preds_val > 0.5).astype(np.uint8)
-preds_test_thr  = (preds_test > 0.5).astype(np.uint8)
+#preds_train_thr = (preds_train > 0.5).astype(np.uint8)
+#preds_val_thr   = (preds_val > 0.5).astype(np.uint8)
+#preds_test_thr  = (preds_test > 0.5).astype(np.uint8)
+
+preds_train_thr = (preds_train > 0.5).astype(np.bool)
+preds_val_thr   = (preds_val > 0.5).astype(np.bool)
+preds_test_thr  = (preds_test > 0.5).astype(np.bool)
 
 # Create list of resized test masks
 preds_test_resized = []
@@ -86,7 +102,7 @@ submit.sort_values(by=['ImageId'], inplace=True)
 submit.to_csv('submit-dsbowol-2018.csv', index=False)
 
 # Perform a sanity check on some random training samples
-ix = random.randint(0, len(preds_train_thr))
+ix = random.randint(0, len(preds_train_thr) - 1)
 plt.figure(figsize=(10,10))
 plt.subplot(131)
 plt.title('image')
@@ -99,7 +115,7 @@ plt.title('prediction')
 io.imshow(np.squeeze(preds_train_thr[ix]))
 plt.savefig('train_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
 
-ix = random.randint(0, len(preds_train_thr))
+ix = random.randint(0, len(preds_train_thr) - 1) 
 plt.figure(figsize=(10,10))
 plt.subplot(131)
 plt.title('image')
@@ -113,7 +129,7 @@ io.imshow(np.squeeze(preds_train_thr[ix]))
 plt.savefig('train_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
 
 # Perform a sanity check on some random validation samples
-ix = random.randint(0, len(preds_val_thr))
+ix = random.randint(0, len(preds_val_thr) - 1)
 plt.figure(figsize=(10,10))
 plt.subplot(131)
 plt.title('image')
@@ -126,7 +142,7 @@ plt.title('prediction')
 io.imshow(np.squeeze(preds_train_thr[ix]))
 plt.savefig('valid_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
 
-ix = random.randint(0, len(preds_val_thr))
+ix = random.randint(0, len(preds_val_thr) - 1)
 plt.figure(figsize=(10,10))
 plt.subplot(131)
 plt.title('image')
@@ -140,7 +156,7 @@ io.imshow(np.squeeze(preds_train_thr[ix]))
 plt.savefig('valid_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
 
 # Perform a sanity check on some random test samples
-ix = random.randint(0, len(preds_test_thr))
+ix = random.randint(0, len(preds_test_thr) - 1)
 plt.figure(figsize=(10,10))
 plt.subplot(121)
 plt.title('image')
@@ -148,9 +164,9 @@ io.imshow(X_test[ix])
 plt.subplot(122)
 plt.title('prediction')
 io.imshow(np.squeeze(preds_test_thr[ix]))
-plt.savefig('valid_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
+plt.savefig('test_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
 
-ix = random.randint(0, len(preds_test_thr))
+ix = random.randint(0, len(preds_test_thr) - 1)
 plt.figure(figsize=(10,10))
 plt.subplot(121)
 plt.title('image')
@@ -158,6 +174,6 @@ io.imshow(X_test[ix])
 plt.subplot(122)
 plt.title('prediction')
 io.imshow(np.squeeze(preds_test_thr[ix]))
-plt.savefig('valid_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
+plt.savefig('test_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
 
-plt.show()
+#plt.show()
