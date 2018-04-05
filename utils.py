@@ -6,7 +6,8 @@ import sys
 import cv2
 
 from skimage.io import imread, imshow, imread_collection, concatenate_images
-from skimage.transform import resize
+from skimage.transform import resize, warp, AffineTransform, rotate
+from skimage.util import random_noise
 from keras.utils import Progbar
 from skimage.morphology import label
 from scipy.ndimage.interpolation import map_coordinates
@@ -162,20 +163,22 @@ def eltransform_images(imgs, labels):
     print('\nPerforming elastic transform on train data ... ')
     sys.stdout.flush()
 
-    if os.path.isfile('train_img_elt.npy') and os.path.isfile('train_mask_elt.npy'):
-        print('Train data loaded from memory')
-        imgs_elt = np.load('train_img_elt.npy')
-        labels_elt = np.load('train_mask_elt.npy')
-        return imgs_elt, labels_elt
+    if os.path.isfile('elstc.npz'):
+        print('Elastic trsformed data loaded from memory')
+        elstc = np.load('elstc.npz')
+        elt_imgs   = elstc['elt_imgs'] 
+        elt_labels = elstc['elt_labels']
+        return elt_imgs, elt_labels
 
     pbar = Progbar(imgs.shape[0])
     for idx in range(num_imgs):
         img = imgs[idx]
         label = labels[idx]
 
-        alpha = img.shape[1] * 2
-        sigma = img.shape[1] * 0.08
-        img_elt = elastic_transform(img, alpha, sigma)
+        alpha = img.shape[1] * 1
+        sigma = img.shape[1] * 0.04
+        
+        img_elt   = elastic_transform(img, alpha, sigma)
         label_elt = elastic_transform(label, alpha, sigma)
 
         elt_imgs.append(img_elt)
@@ -186,13 +189,109 @@ def eltransform_images(imgs, labels):
     elt_imgs = np.array(elt_imgs)
     elt_labels = np.array(elt_labels)
 
-    imgs_elt = np.concatenate((imgs, elt_imgs))
-    labels_elt = np.concatenate((labels, elt_labels))
-    labels_elt.dtype = np.bool
+    elt_labels.dtype = np.bool
+    labels.dtype = np.bool
 
-    np.save("train_img_elt", imgs_elt)
-    np.save("train_mask_elt", labels_elt)
-    return imgs_elt, labels_elt
+    np.savez("elstc", elt_imgs=elt_imgs, elt_labels=elt_labels)
+    
+    return elt_imgs, elt_labels
+
+def add_noise(imgs):
+    num_imgs = imgs.shape[0]
+    noisy_imgs = []
+
+    print('\nAdding noise on train data ... ')
+    sys.stdout.flush()
+
+    if os.path.isfile('noisy_imgs.npy'):
+        print('Noisy data loaded from memory')
+        noisy_imgs = np.load('noisy_imgs.npy')
+        return noisy_imgs
+
+    pbar = Progbar(num_imgs)
+    for idx in range(num_imgs):
+        img = imgs[idx]
+        img = random_noise(img)
+        noisy_imgs.append(img)
+        pbar.update(idx)
+    
+    noisy_imgs = np.array(noisy_imgs)
+    np.save("noisy_imgs",noisy_imgs)
+   
+    return noisy_imgs
+
+def affine_transform(imgs, labels):
+    num_imgs = imgs.shape[0]
+    aft_imgs = []
+    aft_labels = []
+
+    print('\nAffine trsaforming train data ... ')
+    sys.stdout.flush()
+
+    if os.path.isfile('aft.npz'):
+        print('Affine transformed data loaded from memory')
+        aft = np.load('aft.npz')
+        aft_imgs   = aft['aft_imgs']
+        aft_labels = aft['aft_labels']
+        return [aft_imgs, aft_labels]
+
+    affine_tf = AffineTransform(shear=0.15, rotation=(0./180)*np.pi)
+    
+    pbar = Progbar(num_imgs)
+    for idx in range(num_imgs):
+        img   = imgs[idx]
+        label = labels[idx]
+
+        img   = warp(img, inverse_map=affine_tf, mode='edge')
+        label = warp(label, inverse_map=affine_tf, mode='edge')
+
+        aft_imgs.append(img)
+        aft_labels.append(label)
+
+        pbar.update(idx)
+   
+    aft_imgs   = np.array(aft_imgs)
+    aft_labels = np.array(aft_labels) 
+
+    np.savez("aft", aft_imgs=aft_imgs, aft_labels=aft_labels)
+ 
+    return [aft_imgs, aft_labels]
+
+def rotate_images(imgs, labels, angle):
+    num_imgs = imgs.shape[0]
+    rot_imgs = []
+    rot_labels = []
+
+    print('\nRotating train data for {:d} degrees  ... '.format(angle))
+    sys.stdout.flush()
+    
+    save_name = 'rotate_{:d}'.format(angle)+'.npz'
+    if os.path.isfile(save_name):
+        print('{:d} degree rotated data loaded from memory'.format(angle))
+        rot = np.load(save_name)
+        rot_imgs   = rot['rot_imgs']
+        rot_labels = rot['rot_labels']
+        return [rot_imgs, rot_labels]
+
+    pbar = Progbar(num_imgs)
+    for idx in range(num_imgs):
+        img   = imgs[idx]
+        label = labels[idx]
+
+        img   = rotate(img, angle)
+        label = rotate(img, angle)
+
+        rot_imgs.append(img)
+        rot_labels.append(label)
+
+        pbar.update(idx)
+   
+    rot_imgs   = np.array(rot_imgs)
+    rot_labels = np.array(rot_labels) 
+
+    np.savez(save_name, rot_imgs=rot_imgs, rot_labels=rot_labels)
+ 
+    return [rot_imgs, rot_labels]
 
 def flip_images(imgs, labels):
     num_imgs = imgs.shape[0]
