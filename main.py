@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles, add_noise, affine_transform, rotate
+from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles, add_noise, affine_transform, rotate_images, invert_images, blur_images 
 from model import build_unet, dice_coef, mean_iou
 from keras.models import load_model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -11,23 +11,25 @@ from skimage import io
 from skimage.util import random_noise
 from matplotlib import pyplot as plt
 import random
+import sys
 
 model_name = 'model-dsbowl-2018.h5'
 antialias_flag = False 
 
 # get train train data
 X_orig, Y_orig = read_train_data()
-#elt_imgs, elt_labels = eltransform_images(X_orig, Y_orig)
 
+#elt_imgs, elt_labels = eltransform_images(X_orig, Y_orig)
+X_blr, Y_blr = blur_images(X_orig, Y_orig)
 hrz_flp, vrt_flp   = flip_images(X_orig, Y_orig)
 X_aft, Y_aft       = affine_transform(X_orig, Y_orig)
 X_rot90, Y_rot90   = rotate_images(X_orig, Y_orig, 90)
 X_rot180, Y_rot180 = rotate_images(X_orig, Y_orig, 180)
 X_rot270, Y_rot270 = rotate_images(X_orig, Y_orig, 270)
+X_inv              = invert_images(X_orig) 
 
-X_train = np.concatenate((X_orig, vrt_flp[0], hrz_flp[0], X_aft, X_rot90, X_rot180))
-Y_train = np.concatenate((Y_orig, vrt_flp[1], hrz_flp[1], Y_aft, Y_rot90, Y_rot180))
-
+X_train = np.concatenate((X_orig, vrt_flp[0], hrz_flp[0], X_aft, X_rot90, X_rot180, X_inv,  X_blr))
+Y_train = np.concatenate((Y_orig, vrt_flp[1], hrz_flp[1], Y_aft, Y_rot90, Y_rot180, Y_orig, Y_blr))
 
 #X_noisy = add_noise(X_orig)
 #X_train = np.concatenate((X_train, X_noisy))
@@ -58,7 +60,7 @@ else:
     print("\nTraining ...")
     earlystopper = EarlyStopping(patience=5, verbose=1)
     checkpointer = ModelCheckpoint('model-dsbowl-2018.h5', verbose=1, save_best_only=True)
-    results = model.fit(X_train, Y_train, validation_split=0.1, batch_size=8, epochs=30,
+    results = model.fit(X_train, Y_train, validation_split=0.1, batch_size=8, epochs=50,
             callbacks=[earlystopper, checkpointer])
 
 # Predict using test data
