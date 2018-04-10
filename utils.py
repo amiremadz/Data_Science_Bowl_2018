@@ -5,9 +5,10 @@ import os
 import sys
 import cv2
 
+from skimage import img_as_ubyte
 from skimage.io import imread, imshow, imread_collection, concatenate_images
 from skimage.transform import resize, warp, AffineTransform, rotate
-from skimage.util import random_noise
+from skimage.util import random_noise, invert
 from keras.utils import Progbar
 from skimage.morphology import label
 from scipy.ndimage.interpolation import map_coordinates
@@ -176,7 +177,7 @@ def eltransform_images(imgs, labels):
         label = labels[idx]
 
         alpha = img.shape[1] * 1
-        sigma = img.shape[1] * 0.04
+        sigma = img.shape[1] * 0.05
         
         img_elt   = elastic_transform(img, alpha, sigma)
         label_elt = elastic_transform(label, alpha, sigma)
@@ -250,12 +251,86 @@ def affine_transform(imgs, labels):
 
         pbar.update(idx)
    
-    aft_imgs   = np.array(aft_imgs)
+    aft_imgs = np.array(aft_imgs)
+    aft_imgs = img_as_ubyte(aft_imgs)
+
     aft_labels = np.array(aft_labels) 
+    aft_labels = img_as_ubyte(aft_labels)
+    aft_labels.dtype = np.bool
 
     np.savez("aft", aft_imgs=aft_imgs, aft_labels=aft_labels)
  
     return [aft_imgs, aft_labels]
+
+def invert_images(imgs):
+    num_imgs = imgs.shape[0]
+    inverted_imgs = []
+
+    print('\nInverting train data ... ')
+    sys.stdout.flush()
+
+    if os.path.isfile('inverted_imgs.npy'):
+        print('Inverted data loaded from memory')
+        inverted_imgs = np.load('inverted_imgs.npy')
+        return inverted_imgs
+
+    pbar = Progbar(num_imgs)
+    for idx in range(num_imgs):
+        img = imgs[idx]
+        img = invert(img)
+        inverted_imgs.append(img)
+        pbar.update(idx)
+    
+    inverted_imgs = np.array(inverted_imgs)
+    np.save("inverted_imgs",inverted_imgs)
+   
+    return inverted_imgs
+
+def blur_images(imgs, labels):
+    num_imgs = imgs.shape[0]
+    blur_imgs = []
+    blur_labels = []
+    labels.dtype = np.uint8
+
+    print('\nBluring train data ... ')
+    sys.stdout.flush()
+    
+    save_name = 'blur_imgs.npz'
+    if os.path.isfile(save_name):
+        print('blured data loaded from memory')
+        blur = np.load(save_name)
+        blur_imgs   = blur['blur_imgs']
+        blur_labels = blur['blur_labels']
+        return [blur_imgs, blur_labels]
+
+    pbar = Progbar(num_imgs)
+    for idx in range(num_imgs):
+        img   = imgs[idx]
+        label = labels[idx]
+
+        sigma = img.shape[1] * 0.05/4
+        blur_size = int(2 * sigma) | 1 
+
+        img   = cv2.GaussianBlur(img, ksize=(blur_size, blur_size), sigmaX=sigma)
+        label = cv2.GaussianBlur(label, ksize=(blur_size, blur_size), sigmaX=sigma)
+
+        blur_imgs.append(img)
+        blur_labels.append(label)
+
+        pbar.update(idx)
+   
+    blur_imgs = np.array(blur_imgs)
+    blur_imgs = img_as_ubyte(blur_imgs)
+
+    blur_labels = np.array(blur_labels) 
+    blur_labels = np.expand_dims(blur_labels, axis=-1)
+    blur_labels.dtype = np.bool
+
+    labels.dtype = np.bool
+
+    np.savez(save_name, blur_imgs=blur_imgs, blur_labels=blur_labels)
+ 
+    return [blur_imgs, blur_labels]
 
 def rotate_images(imgs, labels, angle):
     num_imgs = imgs.shape[0]
@@ -279,15 +354,19 @@ def rotate_images(imgs, labels, angle):
         label = labels[idx]
 
         img   = rotate(img, angle)
-        label = rotate(img, angle)
+        label = rotate(label, angle)
 
         rot_imgs.append(img)
         rot_labels.append(label)
 
         pbar.update(idx)
    
-    rot_imgs   = np.array(rot_imgs)
+    rot_imgs = np.array(rot_imgs)
+    rot_imgs = img_as_ubyte(rot_imgs)
+
     rot_labels = np.array(rot_labels) 
+    rot_labels = img_as_ubyte(rot_labels)
+    rot_labels.dtype = np.bool
 
     np.savez(save_name, rot_imgs=rot_imgs, rot_labels=rot_labels)
  
