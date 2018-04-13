@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles, draw_grid, elastic_transform, add_noise, affine_transform, rotate_images, invert_images, blur_images
+from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles, draw_grid, elastic_transform, add_noise, affine_transform, rotate_images, invert_images, blur_images, crop_images
 from model import build_unet, dice_coef, mean_iou
 from keras.models import load_model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -17,6 +17,67 @@ from cv2 import GaussianBlur
 X_train, Y_train = read_train_data()
 
 if 1:
+    ix = 2
+    img = X_train[ix]
+    label = Y_train[ix]
+    X_tf, Y_tf = crop_images(X_train, Y_train)
+
+    img_tf   = X_tf[ix] 
+    label_tf = Y_tf[ix]
+    
+    plt.figure(figsize=(8, 8))
+    plt.subplot(221)
+    plt.title('image')
+    io.imshow(img)
+    plt.subplot(222)
+    plt.title('label')
+    io.imshow(np.squeeze(label))
+    plt.subplot(223)
+    plt.title('blur')
+    io.imshow(img_tf)
+    plt.subplot(224)
+    plt.title('blur')
+    io.imshow(np.squeeze(label_tf))
+
+if 0:
+    ix = 2
+    img = X_train[ix]
+    label = Y_train[ix]
+    size = img.shape[0]
+    crop_rate = 0.7
+    antialias_flag = False
+    IMG_HEIGHT = 256
+    IMG_WIDTH  = 256
+    csize = random.randint(np.floor(crop_rate * size), size)
+    w_c = random.randint(0, size - csize)
+    h_c = random.randint(0, size - csize)
+    
+    img_tf = img[w_c:w_c + size, h_c:h_c + size, :]
+    label_tf = label[w_c:w_c + size, h_c:h_c + size, :]
+
+    img_tf = resize(img_tf, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=False, anti_aliasing=antialias_flag)
+    label_tf = resize(label_tf, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=False, anti_aliasing=antialias_flag)
+
+    img_tf   = img_as_ubyte(img_tf)
+    label_tf = img_as_ubyte(label_tf)
+    
+    label_tf.dtype = np.bool
+
+    plt.figure(figsize=(8, 8))
+    plt.subplot(221)
+    plt.title('image')
+    io.imshow(img)
+    plt.subplot(222)
+    plt.title('label')
+    io.imshow(np.squeeze(label))
+    plt.subplot(223)
+    plt.title('blur')
+    io.imshow(img_tf)
+    plt.subplot(224)
+    plt.title('blur')
+    io.imshow(np.squeeze(label_tf))
+
+if 0:
     X_b, Y_b = blur_images(X_train, Y_train)
     ix = 2
     img = X_train[ix]
