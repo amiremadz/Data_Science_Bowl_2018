@@ -120,7 +120,10 @@ def enhance_images():
 
     X_train = np.concatenate((X_orig, vrt_flp[0], hrz_flp[0], X_aft, X_rot90, X_rot180, X_rot270, X_inv,  X_crop))
     Y_train = np.concatenate((Y_orig, vrt_flp[1], hrz_flp[1], Y_aft, Y_rot90, Y_rot180, Y_rot270, Y_orig, Y_crop))
-
+    
+    np.save('enhanced_img',  X_train)
+    np.save('enhanced_mask', Y_train)
+    
     return X_train, Y_train
 
 def read_images(tot=3, IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):

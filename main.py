@@ -2,7 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from utils import read_train_data, read_test_data, allmasks_to_rles, train_masks_to_rles, engance_images
+from utils import read_train_data, read_test_data, allmasks_to_rles, train_masks_to_rles, enhance_images
 from model import build_unet, dice_coef, mean_iou
 from keras.models import load_model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
