@@ -2,20 +2,151 @@ import os
 import numpy as np
 import pandas as pd
 
-from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles, draw_grid, elastic_transform, add_noise, affine_transform, rotate_images
+from utils import read_train_data, read_test_data, flip_images, eltransform_images, allmasks_to_rles, train_masks_to_rles, draw_grid, elastic_transform, add_noise, affine_transform, rotate_images, invert_images, blur_images, crop_images
 from model import build_unet, dice_coef, mean_iou
 from keras.models import load_model
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from skimage.transform import resize, warp, AffineTransform, rotate
-from skimage import io
+from skimage import io, img_as_ubyte
 from skimage.util import invert
 from matplotlib import pyplot as plt
 import random
+from cv2 import GaussianBlur
 
 # get train train data
 X_train, Y_train = read_train_data()
 
 if 1:
+    ix = 2
+    img = X_train[ix]
+    label = Y_train[ix]
+    X_tf, Y_tf = crop_images(X_train, Y_train)
+
+    img_tf   = X_tf[ix] 
+    label_tf = Y_tf[ix]
+    
+    plt.figure(figsize=(8, 8))
+    plt.subplot(221)
+    plt.title('image')
+    io.imshow(img)
+    plt.subplot(222)
+    plt.title('label')
+    io.imshow(np.squeeze(label))
+    plt.subplot(223)
+    plt.title('blur')
+    io.imshow(img_tf)
+    plt.subplot(224)
+    plt.title('blur')
+    io.imshow(np.squeeze(label_tf))
+
+if 0:
+    ix = 2
+    img = X_train[ix]
+    label = Y_train[ix]
+    size = img.shape[0]
+    crop_rate = 0.7
+    antialias_flag = False
+    IMG_HEIGHT = 256
+    IMG_WIDTH  = 256
+    csize = random.randint(np.floor(crop_rate * size), size)
+    w_c = random.randint(0, size - csize)
+    h_c = random.randint(0, size - csize)
+    
+    img_tf = img[w_c:w_c + size, h_c:h_c + size, :]
+    label_tf = label[w_c:w_c + size, h_c:h_c + size, :]
+
+    img_tf = resize(img_tf, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=False, anti_aliasing=antialias_flag)
+    label_tf = resize(label_tf, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=False, anti_aliasing=antialias_flag)
+
+    img_tf   = img_as_ubyte(img_tf)
+    label_tf = img_as_ubyte(label_tf)
+    
+    label_tf.dtype = np.bool
+
+    plt.figure(figsize=(8, 8))
+    plt.subplot(221)
+    plt.title('image')
+    io.imshow(img)
+    plt.subplot(222)
+    plt.title('label')
+    io.imshow(np.squeeze(label))
+    plt.subplot(223)
+    plt.title('blur')
+    io.imshow(img_tf)
+    plt.subplot(224)
+    plt.title('blur')
+    io.imshow(np.squeeze(label_tf))
+
+if 0:
+    X_b, Y_b = blur_images(X_train, Y_train)
+    ix = 2
+    img = X_train[ix]
+    label = np.squeeze(Y_train[ix])
+    img_tf   = X_b[ix] 
+    label_tf = Y_b[ix]
+
+    plt.figure(figsize=(8, 8))
+    plt.subplot(221)
+    plt.title('image')
+    io.imshow(img)
+    plt.subplot(222)
+    plt.title('label')
+    io.imshow(label)
+    plt.subplot(223)
+    plt.title('blur')
+    io.imshow(img_tf)
+    plt.subplot(224)
+    plt.title('blur')
+    io.imshow(label_tf)
+
+if 0:
+    ix = 2
+    img = X_train[ix]
+    label = np.squeeze(Y_train[ix])
+    sigma = img.shape[1] * 0.05/4
+    blur_size = int(2 * sigma) | 1 
+    img_tf   = GaussianBlur(img, ksize=(blur_size, blur_size), sigmaX=sigma)
+    label.dtype = np.uint8
+    label_tf = GaussianBlur(label, ksize=(blur_size, blur_size), sigmaX=sigma)
+    label.dtype = np.bool
+    label_tf.dtype= np.bool
+
+    plt.figure(figsize=(8, 8))
+    plt.subplot(221)
+    plt.title('image')
+    io.imshow(img)
+    plt.subplot(222)
+    plt.title('label')
+    io.imshow(label)
+    plt.subplot(223)
+    plt.title('blur')
+    io.imshow(img_tf)
+    plt.subplot(224)
+    plt.title('blur')
+    io.imshow(label_tf)
+
+if 0:
+    X_inv = invert_images(X_train)
+    ix = 2
+    img = X_train[ix]
+    label = np.squeeze(Y_train[ix])
+    img_tf   = X_inv[ix]
+    label_tf = label 
+    plt.figure(figsize=(8, 8))
+    plt.subplot(221)
+    plt.title('image')
+    io.imshow(img)
+    plt.subplot(222)
+    plt.title('label')
+    io.imshow(label)
+    plt.subplot(223)
+    plt.title('invert')
+    io.imshow(img_tf)
+    plt.subplot(224)
+    plt.title('invert')
+    io.imshow(label_tf)
+
+if 0:
     ix = 2
     img = X_train[ix]
     label = np.squeeze(Y_train[ix])
@@ -36,13 +167,13 @@ if 1:
     io.imshow(label_tf)
 
 if 0:
-    ix = 324
+    ix = 367
     angle = 270 
     img = X_train[ix]
     label = np.squeeze(Y_train[ix])
     X_rot, Y_rot = rotate_images(X_train, Y_train, angle)
     img_tf   = X_rot[ix]
-    label_tf = Y_rot[ix] 
+    label_tf = np.squeeze(Y_rot[ix])
     plt.figure(figsize=(8, 8))
     plt.subplot(221)
     plt.title('image')
@@ -58,11 +189,16 @@ if 0:
     io.imshow(label_tf)
 
 if 0:
-    ix = 324
+    ix = 367
+    angle = 90
     img = X_train[ix]
     label = np.squeeze(Y_train[ix])
-    img_tf   = rotate(img, 90)
-    label_tf = rotate(label, 90) 
+    label.dtype = np.uint8
+    img_tf   = rotate(img, angle)
+    img_tf = img_as_ubyte(img_tf)
+    label_tf = rotate(label, angle) 
+    label_tf = img_as_ubyte(label_tf)
+    label_tf.dtype = np.bool
     plt.figure(figsize=(8, 8))
     plt.subplot(221)
     plt.title('image')
@@ -160,17 +296,39 @@ if 0:
     io.imshow(np.squeeze(vrt_flp[1][ix]))
 
 if 0:
-    #elt_imgs, elt_labels = eltransform_images(X_train, Y_train)
-    #ix = 212
-    #elt_img = elt_imgs[ix]
-    #elt_label = elt_labels[ix]
-    ix = 212 
+    elt_imgs, elt_labels = eltransform_images(X_train, Y_train)
+    ix = 212
+    elt_img = elt_imgs[ix]
+    elt_label = elt_labels[ix]
+    img = X_train[ix]
+    label = Y_train[ix]
+    #draw_grid(img, 50)
+    alpha = img.shape[1] * 1
+    sigma = img.shape[1] * 0.04
+    elt_img   = elt_imgs[ix] 
+    elt_label = elt_labels[ix]
+
+    Y_train = np.squeeze(Y_train)
+    plt.figure(figsize=(8, 8))
+    plt.subplot(221)
+    plt.title('image')
+    io.imshow(X_train[ix])
+    plt.subplot(222)
+    plt.title('elastic')
+    io.imshow(elt_img)
+    plt.subplot(223)
+    io.imshow(Y_train[ix])
+    plt.subplot(224)
+    io.imshow(np.squeeze(elt_label))
+
+if 0:
+    ix = 267 
     img = X_train[ix]
     label = Y_train[ix]
     label.dtype = np.uint8
     draw_grid(img, 50)
     alpha = img.shape[1] * 1
-    sigma = img.shape[1] * 0.04
+    sigma = img.shape[1] * 0.05
     elt_img   = elastic_transform(img, alpha, sigma)
     elt_label = elastic_transform(label, alpha, sigma)
     elt_label.dtype = np.bool
@@ -187,7 +345,6 @@ if 0:
     io.imshow(Y_train[ix])
     plt.subplot(224)
     io.imshow(np.squeeze(elt_label))
-
 
 plt.show()
 

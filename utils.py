@@ -5,9 +5,10 @@ import os
 import sys
 import cv2
 
+from skimage import img_as_ubyte
 from skimage.io import imread, imshow, imread_collection, concatenate_images
 from skimage.transform import resize, warp, AffineTransform, rotate
-from skimage.util import random_noise
+from skimage.util import random_noise, invert
 from keras.utils import Progbar
 from skimage.morphology import label
 from scipy.ndimage.interpolation import map_coordinates
@@ -84,7 +85,11 @@ def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
     pbar = Progbar(len(test_ids))
     for img_num, id_ in enumerate(test_ids):
         path = os.path.join(TEST_PATH, id_)
-        img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
+        img = imread(path + '/images/' + id_ + '.png')
+        if len(img.shape) > 2:
+            img = img[:, :, IMG_CHANNELS]
+        else:
+            img = np.stack((img,) * 3, -1)
         test_sizes.append([img.shape[0], img.shape[1]])
         img = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=True, anti_aliasing=antialias_flag)
         X_test[img_num] = img
@@ -92,6 +97,34 @@ def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
     np.save('test_img', X_test)
     np.save('test_sizes', test_sizes)
     return X_test, test_sizes
+
+def enhance_images():
+    if os.path.isfile('enhanced_img.npy') and os.path.isfile('enhanced_mask.npy'):
+        print('Enhanced data loaded from memory')
+        X_train = np.load('enhanced_img.npy')
+        Y_train = np.load('enhanced_mask.npy')
+        return X_train, Y_train
+
+    # get train train data
+    X_orig, Y_orig = read_train_data()
+
+    #elt_imgs, elt_labels = eltransform_images(X_orig, Y_orig)
+    #X_blr, Y_blr = blur_images(X_orig, Y_orig)
+    X_crop, Y_crop     = crop_images(X_orig, Y_orig)
+    hrz_flp, vrt_flp   = flip_images(X_orig, Y_orig)
+    X_aft, Y_aft       = affine_transform(X_orig, Y_orig)
+    X_rot90, Y_rot90   = rotate_images(X_orig, Y_orig, 90)
+    X_rot180, Y_rot180 = rotate_images(X_orig, Y_orig, 180)
+    X_rot270, Y_rot270 = rotate_images(X_orig, Y_orig, 270)
+    X_inv              = invert_images(X_orig) 
+
+    X_train = np.concatenate((X_orig, vrt_flp[0], hrz_flp[0], X_aft, X_rot90, X_rot180, X_rot270, X_inv,  X_crop))
+    Y_train = np.concatenate((Y_orig, vrt_flp[1], hrz_flp[1], Y_aft, Y_rot90, Y_rot180, Y_rot270, Y_orig, Y_crop))
+    
+    np.save('enhanced_img',  X_train)
+    np.save('enhanced_mask', Y_train)
+    
+    return X_train, Y_train
 
 def read_images(tot=3, IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
     X = np.zeros((tot, IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
@@ -176,7 +209,7 @@ def eltransform_images(imgs, labels):
         label = labels[idx]
 
         alpha = img.shape[1] * 1
-        sigma = img.shape[1] * 0.04
+        sigma = img.shape[1] * 0.05
         
         img_elt   = elastic_transform(img, alpha, sigma)
         label_elt = elastic_transform(label, alpha, sigma)
@@ -250,19 +283,143 @@ def affine_transform(imgs, labels):
 
         pbar.update(idx)
    
-    aft_imgs   = np.array(aft_imgs)
+    aft_imgs = np.array(aft_imgs)
+    aft_imgs = img_as_ubyte(aft_imgs)
+
     aft_labels = np.array(aft_labels) 
+    aft_labels = img_as_ubyte(aft_labels)
+    aft_labels.dtype = np.bool
 
     np.savez("aft", aft_imgs=aft_imgs, aft_labels=aft_labels)
  
     return [aft_imgs, aft_labels]
 
+def invert_images(imgs):
+    num_imgs = imgs.shape[0]
+    inverted_imgs = []
+
+    print('\nInverting train data ... ')
+    sys.stdout.flush()
+
+    if os.path.isfile('inverted_imgs.npy'):
+        print('Inverted data loaded from memory')
+        inverted_imgs = np.load('inverted_imgs.npy')
+        return inverted_imgs
+
+    pbar = Progbar(num_imgs)
+    for idx in range(num_imgs):
+        img = imgs[idx]
+        img = invert(img)
+        inverted_imgs.append(img)
+        pbar.update(idx)
+    
+    inverted_imgs = np.array(inverted_imgs)
+    np.save("inverted_imgs",inverted_imgs)
+   
+    return inverted_imgs
+
+def blur_images(imgs, labels):
+    num_imgs = imgs.shape[0]
+    blur_imgs = []
+    blur_labels = []
+    labels.dtype = np.uint8
+
+    print('\nBluring train data ... ')
+    sys.stdout.flush()
+    
+    save_name = 'blur_imgs.npz'
+    if os.path.isfile(save_name):
+        print('blured data loaded from memory')
+        blur = np.load(save_name)
+        blur_imgs   = blur['blur_imgs']
+        blur_labels = blur['blur_labels']
+        return [blur_imgs, blur_labels]
+
+    pbar = Progbar(num_imgs)
+    for idx in range(num_imgs):
+        img   = imgs[idx]
+        label = labels[idx]
+
+        sigma = img.shape[1] * 0.05/4
+        blur_size = int(2 * sigma) | 1 
+
+        img   = cv2.GaussianBlur(img, ksize=(blur_size, blur_size), sigmaX=sigma)
+        label = cv2.GaussianBlur(label, ksize=(blur_size, blur_size), sigmaX=sigma)
+
+        blur_imgs.append(img)
+        blur_labels.append(label)
+
+        pbar.update(idx)
+   
+    blur_imgs = np.array(blur_imgs)
+    blur_imgs = img_as_ubyte(blur_imgs)
+
+    blur_labels = np.array(blur_labels) 
+    blur_labels = np.expand_dims(blur_labels, axis=-1)
+    blur_labels.dtype = np.bool
+
+    labels.dtype = np.bool
+
+    np.savez(save_name, blur_imgs=blur_imgs, blur_labels=blur_labels)
+ 
+    return [blur_imgs, blur_labels]
+
+ 
+def crop_images(imgs, labels, crop_rate=0.7, IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
+    num_imgs = imgs.shape[0]
+    crp_imgs = []
+    crp_labels = []
+
+    print('\nCropping train data with rate {:.2f} ...'.format(crop_rate))
+    sys.stdout.flush()
+    
+    save_name = 'crop_{:d}'.format(int(crop_rate*100))+'.npz'
+    if os.path.isfile(save_name):
+        print('{:.2f} rate cropped data loaded from memory'.format(crop_rate))
+        crp = np.load(save_name)
+        crp_imgs   = crp['crp_imgs']
+        crp_labels = crp['crp_labels']
+        return [crp_imgs, crp_labels]
+
+    pbar = Progbar(num_imgs)
+    for idx in range(num_imgs):
+        img   = imgs[idx]
+        label = labels[idx]
+
+        size = img.shape[0]
+        csize = random.randint(np.floor(crop_rate * size), size)
+        w_c = random.randint(0, size - csize)
+        h_c = random.randint(0, size - csize)
+
+        img   = img[w_c:w_c + size, h_c:h_c + size, :]
+        label = label[w_c:w_c + size, h_c:h_c + size, :]
+
+        img   = resize(img, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=False, anti_aliasing=antialias_flag)
+        label = resize(label, (IMG_HEIGHT, IMG_WIDTH), mode='constant', preserve_range=False, anti_aliasing=antialias_flag)
+
+        img   = img_as_ubyte(img)
+        label = img_as_ubyte(label)
+    
+        label.dtype = np.bool
+
+        crp_imgs.append(img)
+        crp_labels.append(label)
+
+        pbar.update(idx)
+   
+    crp_imgs   = np.array(crp_imgs)
+    crp_labels = np.array(crp_labels) 
+
+    np.savez(save_name, crp_imgs=crp_imgs, crp_labels=crp_labels)
+ 
+    return [crp_imgs, crp_labels]
+    
 def rotate_images(imgs, labels, angle):
     num_imgs = imgs.shape[0]
     rot_imgs = []
     rot_labels = []
 
-    print('\nRotating train data for {:d} degrees  ... '.format(angle))
+    print('\nRotating train data for {:d} degrees  ...'.format(angle))
     sys.stdout.flush()
     
     save_name = 'rotate_{:d}'.format(angle)+'.npz'
@@ -279,15 +436,19 @@ def rotate_images(imgs, labels, angle):
         label = labels[idx]
 
         img   = rotate(img, angle)
-        label = rotate(img, angle)
+        label = rotate(label, angle)
 
         rot_imgs.append(img)
         rot_labels.append(label)
 
         pbar.update(idx)
    
-    rot_imgs   = np.array(rot_imgs)
+    rot_imgs = np.array(rot_imgs)
+    rot_imgs = img_as_ubyte(rot_imgs)
+
     rot_labels = np.array(rot_labels) 
+    rot_labels = img_as_ubyte(rot_labels)
+    rot_labels.dtype = np.bool
 
     np.savez(save_name, rot_imgs=rot_imgs, rot_labels=rot_labels)
  
@@ -368,7 +529,6 @@ def rl_encoder(x):
     for b in dots:
         if b > (prev + 1):
                 run_length.extend((b + 1, 0))
-                #print(b + 1)
         run_length[-1] += 1
         prev = b
     return run_length
