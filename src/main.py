@@ -1,7 +1,7 @@
 import os
 import numpy as np
 import pandas as pd
-#import settings
+import settings
 
 from utils import read_train_data, read_test_data, enhance_images
 from utils import RunLengthEncoder
@@ -18,14 +18,7 @@ import sys
 model_name = 'model-dsbowl-2018.h5'
 antialias_flag = False 
 
-#settings.init()
-
-TRAIN_PATH = '../data/stage1_train/'
-TEST_PATH  = '../data/stage1_test/'
-
-# Get train and test IDs
-train_ids = next(os.walk(TRAIN_PATH))[1]
-test_ids = next(os.walk(TEST_PATH))[1]
+settings.init()
 
 # get train data
 X_train, Y_train = enhance_images()
@@ -83,7 +76,7 @@ for idx in range(len(X_test)):
     preds_test_resized.append(resize(np.squeeze(this_mask), (this_size[0], this_size[1]), mode='constant', preserve_range=True, anti_aliasing=antialias_flag))
 
 #test_ids, rles = allmasks_to_rles(preds_test_resized)
-rle = RunLengthEncoder(preds_test_resized, test_ids)
+rle = RunLengthEncoder(preds_test_resized, settings.test_ids)
 rle.run()
 
 # Perform a sanity check on some random training samples

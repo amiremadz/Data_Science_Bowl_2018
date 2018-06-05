@@ -5,7 +5,7 @@ import random
 import os
 import sys
 import cv2
-#import settings
+import settings
 
 from skimage import img_as_ubyte
 from skimage.io import imread, imshow, imread_collection, concatenate_images
@@ -25,13 +25,9 @@ seed = 42
 random.seed = seed
 np.random.seed = seed
 
-# Data Path
-TRAIN_PATH = '../data/stage1_train/'
-TEST_PATH  = '../data/stage1_test/'
-
-# Get train and test IDs
-train_ids = next(os.walk(TRAIN_PATH))[1]
-test_ids = next(os.walk(TEST_PATH))[1]
+settings.init()
+train_ids = settings.train_ids
+test_ids  = settings.test_ids 
 
 # Read train images and mask and return as nump array
 def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
