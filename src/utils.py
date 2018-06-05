@@ -85,10 +85,10 @@ def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 
     pbar = Progbar(len(test_ids))
     for img_num, id_ in enumerate(test_ids):
-        path = os.path.join(TEST_PATH, id_)
+        path = os.path.join(settings.TEST_PATH, id_)
         img = imread(path + '/images/' + id_ + '.png')
         if len(img.shape) > 2:
-            img = img[:, :, IMG_CHANNELS]
+            img = img[:, :, :IMG_CHANNELS]
         else:
             img = np.stack((img,) * 3, -1)
         test_sizes.append([img.shape[0], img.shape[1]])
