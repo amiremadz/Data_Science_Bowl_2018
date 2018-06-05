@@ -7,6 +7,9 @@ import sys
 import cv2
 import settings
 
+from model import build_unet, dice_coef, mean_iou
+from keras.models import load_model
+
 from skimage import img_as_ubyte
 from skimage.io import imread, imshow, imread_collection, concatenate_images
 from skimage.transform import resize, warp, AffineTransform, rotate
@@ -44,7 +47,7 @@ def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
 
     pbar = Progbar(len(train_ids))
     for img_num, id_ in enumerate(train_ids):
-        path = os.path.join(TRAIN_PATH, id_)
+        path = os.path.join(settings.TRAIN_PATH, id_)
         # pick color channels, ignore alpha
         img = imread(path + '/images/' + id_ + '.png')[:, :, :IMG_CHANNELS]
         # 3 channels	
@@ -515,6 +518,75 @@ def flip_images(imgs, labels):
     
     return [hrz_imgs, hrz_labels], [vrt_imgs, vrt_labels]
 
+class ImageSegment(object):
+    def __init__(self, model_name, X_train, Y_train, X_test, test_sizes):
+        self.model_name = model_name
+        self.X_train = X_train
+        self.Y_train = Y_train
+        self.X_test  = X_test
+        self.test_sizes = test_sizes
+        self.model = None
+        self.train_results = None
+        self.preds_train = None
+        self.preds_val = None
+        self.preds_test = None
+        self.preds_test_resized = []
+
+    def run(self):
+        self.__train()
+        self.__predict()
+
+    def __train(self):
+        if os.path.isfile(self.model_name):
+            self.model = load_model(self.model_name, custom_objects={'mean_iou': mean_iou})
+            #model = load_model(model_name, custom_objects={'dice_coef': dice_coef})
+        else:
+            # get u-net model
+            self.model = build_unet()
+            # train model
+            print("\nTraining ...")
+            earlystopper = EarlyStopping(patience=5, verbose=1)
+            checkpointer = ModelCheckpoint(self.model_name, verbose=1, save_best_only=True)
+            self.train_results = self.model.fit(self.X_train, self.Y_train, validation_split=0.1, batch_size=4, epochs=50,
+                    callbacks=[earlystopper, checkpointer])
+
+    def __predict(self):
+        # Predict using test data
+        print("\nPredicitng ...")
+        if os.path.isfile('preds_train.npy') : 
+            print("Train prediction data loaded from memory ...")
+            self.preds_train = np.load('preds_train.npy')
+        else:
+            self.preds_train = self.model.predict(self.X_train[:int(self.X_train.shape[0]*0.9)], verbose=1)
+            # Threshold predictions
+            self.preds_train = (self.preds_train > 0.5).astype(np.bool)
+            np.save('preds_train.npy', self.preds_train)
+
+        if os.path.isfile('preds_val.npy'): 
+           print("Validation prediction data loaded from memory ...")
+           self.preds_val = np.load('preds_val.npy')
+        else:
+           self.preds_val = self.model.predict(self.X_train[int(self.X_train.shape[0]*0.9):], verbose=1)
+           # Threshold predictions
+           self.preds_val = (self.preds_val > 0.5).astype(np.bool)
+           np.save('preds_val.npy', self.preds_val)
+                        
+        if os.path.isfile('preds_test.npy'): 
+           print("Test prediction data loaded from memory ...")
+           self.preds_test = np.load('preds_test.npy')
+        else:
+           self.preds_test = model.predict(self.X_test, verbose=1)
+           # Threshold predictions
+           self.preds_test = (self.preds_test > 0.5).astype(np.bool)
+           np.save('preds_test.npy', self.preds_test)
+
+        # Create list of resized test masks
+        print("\nResizing test data ...")
+        for idx in range(len(self.X_test)):
+            this_mask = self.preds_test[idx]
+            this_size = self.test_sizes[idx]
+            self.preds_test_resized.append(resize(np.squeeze(this_mask), (this_size[0], this_size[1]), mode='constant', preserve_range=True, anti_aliasing=antialias_flag))
+
 class RunLengthEncoder(object):
     def __init__(self, masks, ids):
         '''
@@ -525,6 +597,7 @@ class RunLengthEncoder(object):
         self.ids     = ids
         self.ids_per_mask = []
         self.rles    = []
+        self.masks_resized = []
         self.submit  = pd.DataFrame()
 
     def run(self):
