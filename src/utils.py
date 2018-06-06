@@ -575,7 +575,7 @@ class ImageSegment(object):
            print("Test prediction data loaded from memory ...")
            self.preds_test = np.load('preds_test.npy')
         else:
-           self.preds_test = model.predict(self.X_test, verbose=1)
+           self.preds_test = self.model.predict(self.X_test, verbose=1)
            # Threshold predictions
            self.preds_test = (self.preds_test > 0.5).astype(np.bool)
            np.save('preds_test.npy', self.preds_test)
