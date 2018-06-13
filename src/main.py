@@ -3,13 +3,10 @@ import numpy as np
 import pandas as pd
 import settings
 
-from utils import read_train_data, read_test_data, enhance_images
-from utils import ReadData, Plot, RunLengthEncoder, ImageSegment
+from utils import ReadData, Plot, Enhance, RunLengthEncoder, ImageSegment
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 from skimage.transform import resize
-from skimage import io
 from skimage.util import random_noise
-from matplotlib import pyplot as plt
 import sys
 
 model_name = 'model-dsbowl-2018.h5'
@@ -17,27 +14,37 @@ antialias_flag = False
 
 settings.init()
 
-#my_data = ReadData()
-#my_data.train_data()
-#my_data.test_data()
+data = ReadData()
+data.train_data()
+data.test_data()
 
-# get train data
-X_train, Y_train = enhance_images()
+# get train and test data
+X_train = data.X_train
+Y_train = data.Y_train
+X_test     = data.X_test
+test_sizes = data.test_sizes 
 
-# get test train data
-X_test, test_sizes = read_test_data()
+# enhance train data
+enhanced = Enhance(X_train, Y_train)
+enhanced.enhance()
 
+X_train = enhanced.X_out
+Y_train = enhanced.Y_out
+
+# run segmentaion algorithm
 myImgSeg = ImageSegment(model_name, X_train, Y_train, X_test, test_sizes)
 myImgSeg.run()
 
-#test_ids, rles = allmasks_to_rles(preds_test_resized)
+# run-length encoder
 rle = RunLengthEncoder(myImgSeg.preds_test_resized, settings.test_ids)
 rle.run()
 
+# predict labels
 preds_train_thr = myImgSeg.preds_train
 preds_val_thr = myImgSeg.preds_val
 preds_test_thr = myImgSeg.preds_test
 
+# plot results
 preds    = [preds_train_thr, preds_val_thr, preds_test_thr]
 data_all = [X_train, Y_train, X_test]
 
