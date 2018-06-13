@@ -5,6 +5,8 @@ import random
 import os
 import sys
 import cv2
+import random
+
 import settings
 
 from model import build_unet, dice_coef, mean_iou
@@ -19,6 +21,9 @@ from skimage.morphology import label
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 
+from matplotlib import pyplot as plt
+from skimage import io
+
 warnings.filterwarnings('ignore', category=UserWarning, module='skimage')
 
 antialias_flag = False 
@@ -31,6 +36,79 @@ np.random.seed = seed
 settings.init()
 train_ids = settings.train_ids
 test_ids  = settings.test_ids 
+
+
+class ReadData(object):
+    def __init__(self, IMG_HEIGHT=256, IMG_WIDTH=256, IMG_CHANNELS=3):
+        self.img_height   = IMG_HEIGHT
+        self.img_width    = IMG_WIDTH
+        self.img_channels = IMG_CHANNELS
+        self.X_train = np.zeros((len(train_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
+        self.Y_train = np.zeros((len(train_ids), IMG_HEIGHT, IMG_WIDTH, 1), dtype=np.bool)
+        self.X_test  = np.zeros((len(test_ids), IMG_HEIGHT, IMG_WIDTH, IMG_CHANNELS), dtype=np.uint8)
+        self.test_sizes = []
+
+    # Read train images and mask and return as nump array
+    def train_data(self):
+        print('\nGetting and resizing train images and masks ... ')
+        sys.stdout.flush()
+
+        if os.path.isfile('train_img.npy') and os.path.isfile('train_mask.npy'):
+            print("Training data loaded from memory")
+            self.X_train = np.load('train_img.npy')
+            self.Y_train = np.load('train_mask.npy')
+            return
+
+        pbar = Progbar(len(train_ids))
+        for img_num, id_ in enumerate(train_ids):
+            path = os.path.join(settings.TRAIN_PATH, id_)
+            # pick color channels, ignore alpha
+            img = imread(path + '/images/' + id_ + '.png')[:, :, :self.img_channels]
+            # 3 channels	
+            img = resize(img, (self.img_height, self.img_width), mode='constant', preserve_range=True, anti_aliasing=antialias_flag)
+            # 3 channels resized
+            self.X_train[img_num] = img
+
+            mask = np.zeros((self.img_height, self.img_width, 1), dtype=np.bool)
+            for mask_file in next(os.walk(path + '/masks/'))[2]:
+                mask_ = imread(os.path.join(path + '/masks/', mask_file))
+                # shape: (IMG_HEIGHT, IMG_WIDTH)
+                mask_ = resize(mask_, (self.img_height, self.img_width), mode='constant', preserve_range=True, anti_aliasing=antialias_flag)
+                # shape: (IMG_HEIGHT, IMG_WIDTH, 1)
+                mask_ = np.expand_dims(mask_, axis=-1)
+                mask = np.maximum(mask, mask_)
+            self.Y_train[img_num] = mask
+            pbar.update(img_num)
+
+        np.save("train_img",  self.X_train)
+        np.save("train_mask", self.Y_train)
+
+    # Read test images and return as numpy array
+    def test_data(self):
+        print('\nGetting and resizing test images ... ')
+        sys.stdout.flush()
+
+        if os.path.isfile('test_img.npy') and os.path.isfile('test_sizes.npy'):
+            print('Test data loaded from memory')
+            self.X_test = np.load('test_img.npy')
+            self.test_sizes = np.load('test_sizes.npy')
+            return
+
+        pbar = Progbar(len(test_ids))
+        for img_num, id_ in enumerate(test_ids):
+            path = os.path.join(settings.TEST_PATH, id_)
+            img = imread(path + '/images/' + id_ + '.png')
+            if len(img.shape) > 2:
+                img = img[:, :, :self.img_channels]
+
+            else:
+                img = np.stack((img,) * 3, -1)
+            self.test_sizes.append([img.shape[0], img.shape[1]])
+            img = resize(img, (self.img_height, self.img_width), mode='constant', preserve_range=True, anti_aliasing=antialias_flag)
+            self.X_test[img_num] = img
+            pbar.update(img_num)
+        np.save('test_img',   self.X_test)
+        np.save('test_sizes', self.test_sizes)
 
 # Read train images and mask and return as nump array
 def read_train_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
@@ -98,6 +176,95 @@ def read_test_data(IMG_WIDTH=256, IMG_HEIGHT=256, IMG_CHANNELS=3):
     np.save('test_img', X_test)
     np.save('test_sizes', test_sizes)
     return X_test, test_sizes
+
+
+class Plot(object):
+    def __init__(self, data, preds):
+        self.X_train = data[0]
+        self.Y_train = data[1]
+        self.X_test  = data[2]
+        self.preds_train = preds[0]
+        self.preds_val   = preds[1]
+        self.preds_test  = preds[2]
+    
+    def plot(self, show=0):
+        # Perform a sanity check on some random training samples
+        ix = random.randint(0, len(self.preds_train) - 1)
+        plt.figure(figsize=(10,10))
+        plt.subplot(131)
+        plt.title('image')
+        io.imshow(self.X_train[ix])
+        plt.subplot(132)
+        plt.title('mask')
+        io.imshow(np.squeeze(self.Y_train[ix]))
+        plt.subplot(133)
+        plt.title('prediction')
+        io.imshow(np.squeeze(self.preds_train[ix]))
+        plt.savefig('train_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
+
+        ix = random.randint(0, len(self.preds_train) - 1) 
+        plt.figure(figsize=(10,10))
+        plt.subplot(131)
+        plt.title('image')
+        io.imshow(self.X_train[ix])
+        plt.subplot(132)
+        plt.title('mask')
+        io.imshow(np.squeeze(self.Y_train[ix]))
+        plt.subplot(133)
+        plt.title('prediction')
+        io.imshow(np.squeeze(self.preds_train[ix]))
+        plt.savefig('train_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
+
+        # Perform a sanity check on some random validation samples
+        ix = random.randint(0, len(self.preds_val) - 1)
+        plt.figure(figsize=(10,10))
+        plt.subplot(131)
+        plt.title('image')
+        io.imshow(self.X_train[ix])
+        plt.subplot(132)
+        plt.title('mask')
+        io.imshow(np.squeeze(self.Y_train[ix]))
+        plt.subplot(133)
+        plt.title('prediction')
+        io.imshow(np.squeeze(self.preds_train[ix]))
+        plt.savefig('valid_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
+
+        ix = random.randint(0, len(self.preds_val) - 1)
+        plt.figure(figsize=(10,10))
+        plt.subplot(131)
+        plt.title('image')
+        io.imshow(self.X_train[ix])
+        plt.subplot(132)
+        plt.title('mask')
+        io.imshow(np.squeeze(self.Y_train[ix]))
+        plt.subplot(133)
+        plt.title('prediction')
+        io.imshow(np.squeeze(self.preds_train[ix]))
+        plt.savefig('valid_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
+
+        # Perform a sanity check on some random test samples
+        ix = random.randint(0, len(self.preds_test) - 1)
+        plt.figure(figsize=(10,10))
+        plt.subplot(121)
+        plt.title('image')
+        io.imshow(self.X_test[ix])
+        plt.subplot(122)
+        plt.title('prediction')
+        io.imshow(np.squeeze(self.preds_test[ix]))
+        plt.savefig('test_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
+
+        ix = random.randint(0, len(self.preds_test) - 1)
+        plt.figure(figsize=(10,10))
+        plt.subplot(121)
+        plt.title('image')
+        io.imshow(self.X_test[ix])
+        plt.subplot(122)
+        plt.title('prediction')
+        io.imshow(np.squeeze(self.preds_test[ix]))
+        plt.savefig('test_{:d}'.format(ix)+'.jpg', bbox_inches='tight')
+
+        if show:
+            plt.show()
 
 def enhance_images():
     if os.path.isfile('enhanced_img.npy') and os.path.isfile('enhanced_mask.npy'):
