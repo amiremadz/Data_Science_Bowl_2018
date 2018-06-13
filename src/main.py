@@ -10,7 +10,6 @@ from skimage.util import random_noise
 import sys
 
 model_name = 'model-dsbowl-2018.h5'
-antialias_flag = False 
 
 settings.init()
 
